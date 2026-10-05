@@ -11,20 +11,42 @@ path = "src/lib.rs"
 test = false
 bench = false
 
-# Crates the README examples use. Cargo.lock pins the versions CI tests, and
-# the weekly CI run moves it to the latest compatible releases. The
-# jsonwebtoken line is the one the README shows.
+# Crates the README examples use, with only the features they need.
+# Cargo.lock pins the versions CI tests, and the weekly CI run moves it to
+# the latest compatible releases. The jsonwebtoken features are the ones
+# the README recommends (CRY-2).
 [dev-dependencies]
-bindgen = "0.73.2"
+arbitrary = { version = "1.4.2", features = ["derive"] }
 getrandom = "0.4.3"
-hex = "0.4.3"
-jsonwebtoken = { version = "11.1.0", default-features = false, features = ["aws_lc_rs"] }
-proptest = { version = "1", default-features = false, features = ["std"] }
-regex = "1.5.5"
-rustls = "0.23.45"
-rustls-platform-verifier = "0.7.1"
-secrecy = "0.10.3"
-serde = { version = "1", features = ["derive"] }
-sha2 = "0.11"
+jsonwebtoken = { version = "11.1.0", features = ["aws_lc_rs"] }
+serde = { version = "1.0", features = ["derive"] }
 thiserror = "2.0.21"
-wasm-bindgen = "0.2"
+tokio = { version = "1.53.2", features = ["macros", "rt", "sync", "time"] }
+web-sys = { version = "0.3.106", features = ["Document", "Element", "Node", "Window"] }
+
+# The README shows everything below verbatim.
+[lints.rust]
+unsafe_code = "forbid" # UNS-1. Crates that need unsafe: "deny", then #[allow] per module
+
+[lints.clippy] # Opt-in restriction lints (TOOL-4); justify each #[expect(lint, reason = "...")]
+unwrap_used = "deny"                # LIM-2
+indexing_slicing = "deny"           # LIM-2
+arithmetic_side_effects = "deny"    # LIM-3
+as_conversions = "deny"             # AUD-3
+undocumented_unsafe_blocks = "deny" # UNS-4
+
+# Workspace root Cargo.toml only: Cargo ignores profiles in members
+# and dependencies.
+[profile.release]
+# HARD-1: overflow panics instead of wrapping, in dependencies too
+# (`as` casts still truncate silently)
+overflow-checks = true
+# HARD-2: the default; with "abort", any panic ends the whole process
+# and catch_unwind cannot stop it. A panic while holding a std Mutex
+# poisons it: handle PoisonError instead of unwrapping lock().
+panic = "unwind"
+# HARD-3: drop the symbol table. Panic messages keep source paths, so
+# also remap them in CI release builds (the last matching prefix wins;
+# add one for a CARGO_HOME outside HOME):
+# RUSTFLAGS="--remap-path-prefix=$HOME=~" cargo build --release --locked
+strip = "symbols"

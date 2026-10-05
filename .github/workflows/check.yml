@@ -60,13 +60,22 @@ jobs:
       - name: Advisories in the doctests' dependencies
         run: cargo deny check advisories
 
-      # Exclusions, each with its reason (none needed as of 2026-10-04):
-      # (mailto: links are skipped by lychee's defaults.)
+      # Remaps and exclusions, each with its reason (mailto: links are
+      # skipped by lychee's defaults):
+      # - Zulip opens a channel from a client-side "#narrow/..." fragment
+      #   that no HTML anchor matches, so check the Zulip server instead.
+      # - doi.org redirects to dl.acm.org, which often refuses requests from
+      #   CI runners. DOIs are persistent; this one resolved on 2026-10-04.
+      # The action runs `eval lychee ... $args`, so the quotes below hold.
       - name: Links
         uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
         with:
           lycheeVersion: v0.24.2
-          args: --no-progress --include-fragments README.md
+          args: >-
+            --no-progress --include-fragments
+            --remap 'https://rust-lang\.zulipchat\.com/#narrow/.* https://rust-lang.zulipchat.com/'
+            --exclude '^https://doi\.org/'
+            README.md
           jobSummary: false
 
       - name: Render Mermaid diagrams (default and dark themes)
