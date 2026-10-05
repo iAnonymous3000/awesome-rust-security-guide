@@ -9,7 +9,7 @@ Last verified 2026-10-05 · Rust 1.99 · edition 2024
 | Know what Rust prevents | [Guarantees](#what-rust-does-and-doesnt-protect) | Plan for panics, overflow, logic bugs ([LIM-2](#lim-2)–[LIM-4](#lim-4)) |
 | Vet a dependency | [Dependencies](#is-this-crate-safe-to-depend-on) | Check its crates.io Security tab ([DEP-1](#dep-1)) |
 | Secure builds, releases, incident response | [Supply chain](#supply-chain-releases-response) | Commit `Cargo.lock` ([SUP-4](#sup-4)) |
-| Write or review `unsafe`, FFI | [Unsafe](#unsafe-and-ffi) | Check each `// SAFETY:` against the callee's `# Safety` docs ([UNS-4](#uns-4)) |
+| Write or audit `unsafe`, FFI | [Unsafe](#unsafe-and-ffi) | Check each `// SAFETY:` against the callee's `# Safety` docs ([UNS-4](#uns-4)) |
 | Share data across threads or tasks | [Concurrency](#concurrency-and-async) | `thread::scope` or `Arc<Mutex<T>>` ([CON-1](#con-1)) |
 | Audit unfamiliar code | [Auditing](#auditing-rust-code) | Read its build-time code before opening it ([AUD-9](#aud-9)) |
 | Choose crypto, TLS, secret storage | [Crypto](#crypto-tls-secrets) | rustls ≥0.23.45 ([CRY-1](#cry-1)) |
@@ -20,7 +20,7 @@ Last verified 2026-10-05 · Rust 1.99 · edition 2024
 | ZK proofs, threshold signing, FHE | [Privacy tech](#privacy-tech) | Test that circuits reject wrong inputs ([PRIV-1](#priv-1)) |
 | Learn from past incidents | [Casebook](#casebook) | Update Rust promptly ([CASE-1](#case-1)) |
 | Fix code from this guide's 2024 version | [Corrections](#corrected-since-the-2024-version) | Apply each row's fix |
-| Report or follow vulnerabilities | [Stay current](#stay-current) | Toolchain bugs: security@rust-lang.org |
+| Report or follow vulnerabilities | [Stay current](#stay-current) | Toolchain: security@rust-lang.org; crates: [SUP-9](#sup-9) |
 
 ## If you do only ten things
 
@@ -40,6 +40,7 @@ Last verified 2026-10-05 · Rust 1.99 · edition 2024
 unsafe_code = "forbid" # UNS-1. Crates that need unsafe: "deny", then #[allow] per module
 
 [lints.clippy] # Opt-in restriction lints (TOOL-4); justify each #[expect(lint, reason = "...")]
+# Existing code: start indexing_slicing, arithmetic_side_effects at "warn"; #![deny] per module
 unwrap_used = "deny"                # LIM-2
 expect_used = "deny"                # LIM-2
 indexing_slicing = "deny"           # LIM-2
@@ -77,7 +78,7 @@ strip = "symbols"
 | "Implement secure communication protocols" like TLS, SSH | Home-made protocol bugs | rustls, russh or snow ([Crypto](#crypto-tls-secrets)) |
 | JWT with a hard-coded key, no backend, no iss/aud check, token printed | Forgery; panics; leaked tokens | [CRY-2](#cry-2) |
 | "type safety extend to FFI boundaries"; bindgen run from `main`; `to_str().unwrap()` on C strings | Unchecked signatures; panics; wrong-allocator frees | [UNS-10](#uns-10), [UNS-12](#uns-12) |
-| Raw pointers via `&num`, then `&mut num` | `&mut` invalidates the first (Miri, Stacked Borrows) | `&raw const`, `&raw mut` ([UNS-5](#uns-5)) |
+| Raw pointers via `&num`, then `&mut num` | `&mut` invalidates the first (Miri, [Stacked Borrows](https://github.com/rust-lang/unsafe-code-guidelines/blob/master/wip/stacked-borrows.md)) | `&raw const`, `&raw mut` ([UNS-5](#uns-5)) |
 | "Arc is both Send and Sync"; threads never joined | Unsound sharing; lost work | [CON-1](#con-1) |
 | Redaction credited to "move semantics" | Secret never wiped | `SecretString` ([CRY-9](#cry-9)) |
 | thiserror `{0}` in client errors | Leaks internals | [SVC-14](#svc-14) |
@@ -219,7 +220,7 @@ flowchart TD
 |---|---|---|
 | Maintainer account ([phishing](#case-phishing)) | <a id="sup-1"></a>**SUP-1** Sign in only via typed or bookmarked URLs ([2025-09-12](https://blog.rust-lang.org/2025/09/12/crates-io-phishing-campaign/)); schedule calls yourself; never run what callers send ([2026-09-17](https://blog.rust-lang.org/2026/09/17/targeted-attacks/)). | [Passkeys](https://docs.github.com/en/authentication/authenticating-with-a-passkey/about-passkeys), security keys |
 | Publish | <a id="sup-2"></a>**SUP-2** Use Trusted Publishing ([30-minute](https://crates.io/docs/trusted-publishing) CI tokens), then disable token publishing ([2026-01-21](https://blog.rust-lang.org/2026/01/21/crates-io-development-update/)). | [crates-io-auth-action v1.0.5](https://github.com/rust-lang/crates-io-auth-action/releases/tag/v1.0.5) |
-| Registry ([tar](#case-tar)) | <a id="sup-3"></a>**SUP-3** Run Rust ≥[1.96.1](https://blog.rust-lang.org/2026/06/30/Rust-1.96.1/). Check advisories daily: malware removals get one ([2026-02-13](https://blog.rust-lang.org/2026/02/13/crates.io-malicious-crate-update/)). | [DEP-1](#dep-1), [OSS Rebuild](https://github.com/google/oss-rebuild) |
+| Registry ([tar](#case-tar)) | <a id="sup-3"></a>**SUP-3** Run Rust ≥[1.96.1](https://blog.rust-lang.org/2026/06/30/Rust-1.96.1/) (Cargo's SSH-library CVEs). Check advisories daily ([malware too](https://blog.rust-lang.org/2026/02/13/crates.io-malicious-crate-update/)). | [DEP-1](#dep-1), [OSS Rebuild](https://github.com/google/oss-rebuild) |
 | Cargo.lock ([arrayref](#case-arrayref)) | <a id="sup-4"></a>**SUP-4** Commit `Cargo.lock`; build, install `--locked`; keep caret requirements, not `=` pins ([Cargo](https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html)). | Dependabot ([3-day](https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference#cooldown-) cooldown) or Renovate [`minimumReleaseAge`](https://docs.renovatebot.com/configuration-options/#minimumreleaseage) |
 | build.rs, proc macros ([proc-macro1](#case-arrayref)) | <a id="sup-5"></a>**SUP-5** Building or opening a repo runs its code; hold no credentials there. | Container or VM |
 | CI secrets and caches ([Miri](#case-miri)) | <a id="sup-6"></a>**SUP-6** No secrets in jobs that write caches PRs can read ([2026-09-21](https://blog.rust-lang.org/2026/09/21/github-actions-leaking-secrets-when-miri-output-is-cached/)). | GitHub environments, [zizmor 1.30.1](https://github.com/zizmorcore/zizmor/releases/tag/v1.30.1) |
@@ -330,18 +331,22 @@ Safe Rust rejects data races (unsynchronized concurrent access, one writing) at 
 | <a id="con-2"></a>**CON-2** Panic while locked | Fail closed, or re-check invariants, then [`PoisonError::into_inner`](https://doc.rust-lang.org/std/sync/struct.Mutex.html#poisoning) | `.lock().unwrap()` in servers (panics cascade) |
 | <a id="con-3"></a>**CON-3** Deadlocks | One lock order; drop std guards before [`.await`](https://docs.rs/tokio/1.53.2/tokio/sync/struct.Mutex.html#which-kind-of-mutex-should-you-use) ([`await_holding_lock`](https://rust-lang.github.io/rust-clippy/master/index.html#await_holding_lock)) | Relocking a held `Mutex` (hang/panic) |
 | <a id="con-4"></a>**CON-4** Cancellation: `select!`, [`timeout`](https://docs.rs/tokio/1.53.2/tokio/time/fn.timeout.html) drop unfinished futures | [`reserve()`, then `Permit::send`](https://docs.rs/tokio/1.53.2/tokio/sync/mpsc/struct.Sender.html#method.reserve) | `send`, `read_exact`, `write_all` (lost data) |
-| <a id="con-5"></a>**CON-5** Bound queues, blocking | [`mpsc::channel(n)`](https://docs.rs/tokio/1.53.2/tokio/sync/mpsc/fn.channel.html) (threads: [`sync_channel(n)`](https://doc.rust-lang.org/std/sync/mpsc/fn.sync_channel.html)); capped [`spawn_blocking`](https://docs.rs/tokio/1.53.2/tokio/task/fn.spawn_blocking.html) | [`unbounded_channel`](https://docs.rs/tokio/1.53.2/tokio/sync/mpsc/fn.unbounded_channel.html), std [`channel`](https://doc.rust-lang.org/std/sync/mpsc/fn.channel.html) (unbounded memory); blocking in tasks (stall) |
+| <a id="con-5"></a>**CON-5** Bound queues, blocking | [`mpsc::channel(n)`](https://docs.rs/tokio/1.53.2/tokio/sync/mpsc/fn.channel.html) (threads: [`sync_channel(n)`](https://doc.rust-lang.org/std/sync/mpsc/fn.sync_channel.html)); [`Semaphore`](https://docs.rs/tokio/1.53.2/tokio/sync/struct.Semaphore.html)-capped [`spawn_blocking`](https://docs.rs/tokio/1.53.2/tokio/task/fn.spawn_blocking.html) | [`unbounded_channel`](https://docs.rs/tokio/1.53.2/tokio/sync/mpsc/fn.unbounded_channel.html), std [`channel`](https://doc.rust-lang.org/std/sync/mpsc/fn.channel.html) (unbounded memory); blocking in tasks (stall) |
 | <a id="con-6"></a>**CON-6** File check-then-use (TOCTOU) | One opened handle (cap-std [4.0.3](https://crates.io/crates/cap-std/4.0.3)) | Re-resolving the path ([symlink swap](#case-sudoedit)) |
 | <a id="con-7"></a>**CON-7** Lock-dependent `unsafe` | `// SAFETY:` holds in all interleavings; loom, shuttle | Single-thread reasoning (memory corruption) |
 
 ```rust
-use tokio::{sync::mpsc::{self, Sender}, time::{Duration, sleep}};
+use tokio::{sync::mpsc::{self, Sender}, time::{Duration, timeout}};
 
-// CON-4: wait for a slot first; if the timer wins, the caller still owns `msg`.
-async fn forward(tx: &Sender<String>, msg: String) -> Result<(), String> {
-    tokio::select! {
-        Ok(permit) = tx.reserve() => { permit.send(msg); Ok(()) }
-        () = sleep(Duration::from_secs(1)) => Err(msg), // full or closed: retry or reject
+#[derive(Debug, PartialEq)]
+enum Fwd { Full(String), Closed(String) } // either way, the caller still owns the message
+
+// CON-4: reserve a slot before handing over `msg`, so a timeout can't lose it.
+async fn forward(tx: &Sender<String>, msg: String) -> Result<(), Fwd> {
+    match timeout(Duration::from_secs(1), tx.reserve()).await {
+        Ok(Ok(permit)) => { permit.send(msg); Ok(()) }
+        Ok(Err(_closed)) => Err(Fwd::Closed(msg)), // receiver gone for good: never retry
+        Err(_elapsed) => Err(Fwd::Full(msg)),      // queue full: retry later or reject
     }
 }
 
@@ -349,8 +354,10 @@ async fn forward(tx: &Sender<String>, msg: String) -> Result<(), String> {
 async fn main() {
     let (tx, mut rx) = mpsc::channel(1); // bounded: back-pressure, not memory growth
     assert_eq!(forward(&tx, "a".into()).await, Ok(()));
-    assert_eq!(forward(&tx, "b".into()).await, Err("b".into())); // queue full: "b" comes back
+    assert_eq!(forward(&tx, "b".into()).await, Err(Fwd::Full("b".into()))); // "b" comes back
     assert_eq!(rx.recv().await.as_deref(), Some("a"));
+    drop(rx); // consumer gone: fail at once instead of waiting out the timeout
+    assert_eq!(forward(&tx, "c".into()).await, Err(Fwd::Closed("c".into())));
 }
 ```
 
@@ -393,21 +400,20 @@ find "$REPO" -name build.rs -o -name 'rust-toolchain*' -o -path '*/.cargo/config
 
 ## Crypto, TLS, secrets
 
-Never hand-roll TLS, SSH or Noise: use rustls, [russh ≥0.64.1](https://github.com/Eugeny/russh/security/advisories) or [snow ≥0.9.5](https://rustsec.org/advisories/RUSTSEC-2024-0011.html). Few RustCrypto crates are audited; types don't stop [compiler-inserted timing leaks](#case-dalek).
+Never hand-roll TLS, SSH or Noise: use rustls, [russh ≥0.64.1](https://github.com/Eugeny/russh/security/advisories) or [snow ≥0.9.5](https://rustsec.org/advisories/RUSTSEC-2024-0011.html).
 
 | Job | Use (minimum version) | Avoid (why) | Status 2026-10-04 |
 |---|---|---|---|
-| <a id="cry-1"></a>**CRY-1** TLS | [rustls ≥0.23.45](https://rustsec.org/advisories/RUSTSEC-2026-0285.html), [default aws-lc-rs](https://github.com/rustls/rustls/blob/v/0.23.45/rustls/Cargo.toml) ([X25519MLKEM768 first](https://github.com/rustls/rustls/blob/v/0.23.45/rustls/src/crypto/aws_lc_rs/mod.rs)); [rustls-platform-verifier](https://github.com/rustls/rustls-platform-verifier/blob/v/0.7.1/README.md) (no revocation on Linux) | `webpki` ([idle since 2024-02](https://github.com/briansmith/webpki/commits/main); use [rustls-webpki ≥0.103.13](https://rustsec.org/advisories/RUSTSEC-2026-0104.html)); [`*danger_accept_invalid*`](https://docs.rs/reqwest/0.13.5/reqwest/struct.ClientBuilder.html); both or no provider features without `install_default()` ([`builder()` panics](https://github.com/rustls/rustls/blob/v/0.23.45/rustls/src/crypto/mod.rs)) | [0.23.45](https://crates.io/crates/rustls/0.23.45), 2026-09-14 |
+| <a id="cry-1"></a>**CRY-1** TLS | [rustls ≥0.23.45](https://rustsec.org/advisories/RUSTSEC-2026-0285.html), [default aws-lc-rs](https://github.com/rustls/rustls/blob/v/0.23.45/rustls/Cargo.toml) ([X25519MLKEM768 first](https://github.com/rustls/rustls/blob/v/0.23.45/rustls/src/crypto/aws_lc_rs/mod.rs)); [rustls-platform-verifier](https://github.com/rustls/rustls-platform-verifier/blob/v/0.7.1/README.md) (no revocation on Linux) | `webpki` ([idle since 2024-02](https://github.com/briansmith/webpki/commits/main); use [rustls-webpki ≥0.103.13](https://rustsec.org/advisories/RUSTSEC-2026-0104.html)); [`*danger_accept_invalid*`](https://docs.rs/reqwest/0.13.5/reqwest/struct.ClientBuilder.html); `ring` with `aws_lc_rs`, or neither, without `install_default()` ([`builder()` panics](https://github.com/rustls/rustls/blob/v/0.23.45/rustls/src/crypto/mod.rs)) | [0.23.45](https://crates.io/crates/rustls/0.23.45), 2026-09-14 |
 | <a id="cry-2"></a>**CRY-2** JWT | [jsonwebtoken ≥10.3.0](https://github.com/advisories/GHSA-h395-gr6q-cpjc), `features = ["aws_lc_rs"]`, [≥256-bit key](https://www.rfc-editor.org/rfc/rfc7518.html#section-3.2), require iss, aud; asymmetric signing if others verify ([RFC 9068](https://www.rfc-editor.org/rfc/rfc9068.html#section-2.1)) | No backend feature ([panics](https://github.com/Keats/jsonwebtoken/blob/v11.1.0/src/crypto/mod.rs)); `rust_crypto` ([pulls `rsa`](https://github.com/Keats/jsonwebtoken/blob/v11.1.0/Cargo.toml)) | [11.1.0](https://crates.io/crates/jsonwebtoken/11.1.0), 2026-09-16 |
 | <a id="cry-3"></a>**CRY-3** Passwords | [argon2 ≥0.6.0](https://github.com/RustCrypto/password-hashes/blob/master/argon2/README.md) `Argon2::default()` (Argon2id at [OWASP's minimum](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html)) | [Fast hashes](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html) like SHA-256 | [0.6.0](https://crates.io/crates/argon2/0.6.0), 2026-08-27 |
 | <a id="cry-4"></a>**CRY-4** Encryption | [aes-gcm ≥0.10.3](https://rustsec.org/advisories/RUSTSEC-2023-0096.html) or chacha20poly1305; random 96-bit nonces ≤[2^32 messages per key](https://docs.rs/aead/0.6.1/aead/type.Nonce.html), else counter or XChaCha20Poly1305 | Reused nonce ([catastrophic](https://docs.rs/aead/0.6.1/aead/type.Nonce.html)); [sodiumoxide](https://rustsec.org/advisories/RUSTSEC-2021-0137.html) (deprecated) | [NCC-audited 2020](https://github.com/RustCrypto/AEADs/blob/master/aes-gcm/README.md) |
 | <a id="cry-5"></a>**CRY-5** MAC check | [hmac](https://github.com/RustCrypto/MACs/blob/master/hmac/README.md) [`verify_slice`](https://docs.rs/digest/0.11.3/digest/trait.Mac.html) or [subtle](https://crates.io/crates/subtle/2.6.1) `ct_eq` | `==` on tags (timing leak) | [hmac 0.13.0](https://crates.io/crates/hmac/0.13.0), 2026-03-29 |
 | <a id="cry-6"></a>**CRY-6** Tokens, keys | [`getrandom::fill`](https://github.com/rust-random/getrandom/blob/master/CHANGELOG.md) (Wasm: [DOM-4](#dom-4)) | `rng % len` (biased); `OsRng`, `RngCore` ([renamed in rand 0.10](https://rust-random.github.io/book/update-0.10.html)) | [0.4.3](https://crates.io/crates/getrandom/0.4.3), 2026-06-17 |
-| <a id="cry-7"></a>**CRY-7** Signatures | [ed25519-dalek ≥2.0](https://rustsec.org/advisories/RUSTSEC-2022-0093.html), [curve25519-dalek ≥4.1.3](https://rustsec.org/advisories/RUSTSEC-2024-0344.html); [k256](https://crates.io/crates/k256/0.14.0) | [`rsa`](https://rustsec.org/advisories/RUSTSEC-2023-0071.html) signing, decryption (Marvin timing attack, unpatched) | k256 [NCC-reviewed 2023-08](https://www.nccgroup.com/research/public-report-entropyrust-cryptography-review/) (pre-0.14); [p256](https://github.com/RustCrypto/elliptic-curves/blob/master/p256/README.md), [ecdsa](https://github.com/RustCrypto/signatures/blob/master/ecdsa/README.md) never audited |
-| <a id="cry-8"></a>**CRY-8** Post-quantum | [CRY-1](#cry-1) for TLS; [aws-lc-rs](https://docs.rs/aws-lc-rs/1.18.1/aws_lc_rs/kem/index.html) ([aws-lc-sys ≥0.39.0](https://rustsec.org/advisories/RUSTSEC-2026-0044.html)), [libcrux-ml-kem](https://github.com/celabshq/libcrux/blob/main/libcrux-ml-kem/README.md) [≥0.0.10](https://rustsec.org/advisories/RUSTSEC-2026-0212.html) or ml-kem | [pqcrypto, PQClean](https://rustsec.org/advisories/RUSTSEC-2026-0164.html) (archived); [pqc_kyber](https://rustsec.org/advisories/RUSTSEC-2026-0289.html) (unpatched) | [ml-kem](https://github.com/RustCrypto/KEMs/blob/master/ml-kem/README.md), [ml-dsa](https://github.com/RustCrypto/signatures/blob/master/ml-dsa/README.md) unaudited; libcrux [pre-0.1, partly verified](https://github.com/celabshq/libcrux) |
+| <a id="cry-7"></a>**CRY-7** Signatures | [ed25519-dalek ≥2.0](https://rustsec.org/advisories/RUSTSEC-2022-0093.html), [curve25519-dalek ≥4.1.3](https://rustsec.org/advisories/RUSTSEC-2024-0344.html); [k256](https://crates.io/crates/k256/0.14.0); RSA: [aws-lc-rs](https://docs.rs/aws-lc-rs/1.18.1/aws_lc_rs/rsa/index.html) ([constant-time](https://github.com/aws/aws-lc/blob/v5.7.0/crypto/fipsmodule/rsa/rsa_impl.c#L553-L576)) | [`rsa`](https://rustsec.org/advisories/RUSTSEC-2023-0071.html) signing, decryption (Marvin timing attack, unpatched) | k256 [NCC-reviewed 2023-08](https://www.nccgroup.com/research/public-report-entropyrust-cryptography-review/) (pre-0.14); [p256](https://github.com/RustCrypto/elliptic-curves/blob/master/p256/README.md), [ecdsa](https://github.com/RustCrypto/signatures/blob/master/ecdsa/README.md) never audited |
+| <a id="cry-8"></a>**CRY-8** Post-quantum | [CRY-1](#cry-1) for TLS; [aws-lc-rs](https://docs.rs/aws-lc-rs/1.18.1/aws_lc_rs/kem/index.html) ([aws-lc-sys ≥0.39.0](https://rustsec.org/advisories/RUSTSEC-2026-0044.html)), [libcrux-ml-kem](https://github.com/celabshq/libcrux/blob/main/libcrux-ml-kem/README.md) [≥0.0.10](https://docs.rs/crate/libcrux-ml-kem/0.0.10/source/Cargo.toml) ([RUSTSEC-2026-0212](https://rustsec.org/advisories/RUSTSEC-2026-0212.html)) or ml-kem | [pqcrypto, PQClean](https://rustsec.org/advisories/RUSTSEC-2026-0164.html) (archived); [pqc_kyber](https://rustsec.org/advisories/RUSTSEC-2026-0289.html) (unpatched) | [ml-kem](https://github.com/RustCrypto/KEMs/blob/master/ml-kem/README.md), [ml-dsa](https://github.com/RustCrypto/signatures/blob/master/ml-dsa/README.md) unaudited; libcrux [pre-0.1, partly verified](https://github.com/celabshq/libcrux) |
 | <a id="cry-9"></a>**CRY-9** Secrets | [secrecy 0.10.3](https://crates.io/crates/secrecy/0.10.3) `SecretString` from a secret store (wiped on drop, redacted `Debug`); exit if missing or empty | `Debug` redaction alone (no wipe); [dotenv](https://rustsec.org/advisories/RUSTSEC-2021-0141.html) (use dotenvy); env vars (leak to [children](https://doc.rust-lang.org/std/process/struct.Command.html), [`/proc`](https://man7.org/linux/man-pages/man5/proc_pid_environ.5.html), [core dumps](https://man7.org/linux/man-pages/man5/core.5.html)) | [Best-effort wipe](https://docs.rs/zeroize/1.9.0/zeroize/#stackheap-zeroing-notes): moved or reallocated copies remain |
-
-Require the claims you check:
+| <a id="cry-10"></a>**CRY-10** Hashing, key derivation | [sha2](https://docs.rs/sha2/0.11.0/sha2/), [blake3](https://docs.rs/blake3/1.8.7/blake3/); [hkdf](https://docs.rs/hkdf/0.13.0/hkdf/) | [MD5](https://www.rfc-editor.org/rfc/rfc6151.html), [SHA-1](https://www.nist.gov/news-events/news/2022/12/nist-retires-sha-1-cryptographic-algorithm) (collisions) | sha2 [0.11.0](https://crates.io/crates/sha2/0.11.0), 2026-03-25 |
 
 ```rust
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation, decode, encode};
@@ -418,7 +424,7 @@ const AUD: &str = "orders-api";
 #[derive(Serialize, Deserialize)]
 struct Claims { sub: String, iss: String, aud: String, exp: u64 }
 
-fn validation() -> Validation {
+fn validation() -> Validation { // CRY-2: require every claim you check
     let mut v = Validation::new(Algorithm::HS256); // pinned; HS256 only if this service also signs
     v.set_issuer(&[ISS]);
     v.set_audience(&[AUD]);
@@ -444,31 +450,31 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## Hardening a service
 
-Bound every input's time, size, nesting and file access.
+Bound every input's time, size, nesting, file access.
 
 | Need | Use (minimum version) | Avoid (why) | Status 2026-10-04 |
 |---|---|---|---|
-| <a id="svc-1"></a>**SVC-1** Slow clients (slowloris) | HTTP/1 [`header_read_timeout`](https://docs.rs/hyper/1.11.1/hyper/server/conn/http1/struct.Builder.html#method.header_read_timeout), [`timer`](https://docs.rs/hyper/1.11.1/hyper/server/conn/http1/struct.Builder.html#method.timer) (below); HTTP/2: cap [`max_concurrent_streams`](https://docs.rs/hyper/1.11.1/hyper/server/conn/http2/struct.Builder.html#method.max_concurrent_streams), timeout proxy; [`TimeoutLayer::with_status_code`](https://docs.rs/tower-http/0.7.1/tower_http/timeout/struct.TimeoutLayer.html#method.with_status_code) | [`axum::serve`](https://docs.rs/axum/0.8.9/axum/fn.serve.html) ≤0.8.9, [HTTP/2](https://docs.rs/hyper/1.11.1/hyper/server/conn/http2/struct.Builder.html) (no header timeout) | hyper [1.11.1](https://crates.io/crates/hyper/1.11.1) |
+| <a id="svc-1"></a>**SVC-1** Slow clients (slowloris) | HTTP/1 [`header_read_timeout`](https://docs.rs/hyper/1.11.1/hyper/server/conn/http1/struct.Builder.html#method.header_read_timeout), [`timer`](https://docs.rs/hyper/1.11.1/hyper/server/conn/http1/struct.Builder.html#method.timer) (below; [axum](https://github.com/tokio-rs/axum/tree/axum-v0.8.9/examples/serve-with-hyper)); HTTP/2: cap [`max_concurrent_streams`](https://docs.rs/hyper/1.11.1/hyper/server/conn/http2/struct.Builder.html#method.max_concurrent_streams), proxy-enforced timeouts; [`TimeoutLayer::with_status_code`](https://docs.rs/tower-http/0.7.1/tower_http/timeout/struct.TimeoutLayer.html#method.with_status_code) | [`axum::serve`](https://github.com/tokio-rs/axum/blob/axum-v0.8.9/axum/src/serve/mod.rs#L391), bare [HTTP/2](https://docs.rs/hyper/1.11.1/hyper/server/conn/http2/struct.Builder.html) (no header timeout) | hyper [1.11.1](https://crates.io/crates/hyper/1.11.1) |
 | <a id="svc-2"></a>**SVC-2** HTTP/2 floods | h2 [≥0.4.16](https://rustsec.org/advisories/RUSTSEC-2026-0258.html) | 0.3.x ([unpatched](https://rustsec.org/advisories/RUSTSEC-2026-0258.html)); 0.4.0–0.4.3 ([CONTINUATION flood](https://rustsec.org/advisories/RUSTSEC-2024-0332.html)) | [0.4.19](https://crates.io/crates/h2/0.4.19) |
 | <a id="svc-3"></a>**SVC-3** Cross-site forgery (CSRF) | tower-http [`CsrfLayer`](https://docs.rs/tower-http/0.7.1/tower_http/csrf/index.html); GET changes no state | [`very_permissive()`](https://docs.rs/tower-http/0.7.1/tower_http/cors/struct.CorsLayer.html#method.very_permissive) CORS ([AUD-6](#aud-6)) | [0.7.1](https://crates.io/crates/tower-http/0.7.1) |
 | <a id="svc-4"></a>**SVC-4** Body, WebSocket size | [`RequestBodyLimitLayer`](https://docs.rs/tower-http/0.7.1/tower_http/limit/struct.RequestBodyLimitLayer.html); [`max_message_size`](https://docs.rs/axum/0.8.9/axum/extract/ws/struct.WebSocketUpgrade.html#method.max_message_size) under 64 MB | [`DefaultBodyLimit`](https://docs.rs/axum/0.8.9/axum/extract/struct.DefaultBodyLimit.html) alone (skips streams), `disable()` | axum [0.8.9](https://crates.io/crates/axum/0.8.9) |
 | <a id="svc-5"></a>**SVC-5** Length fields, decompression | Cap before allocating; [`take`](https://doc.rust-lang.org/std/io/trait.Read.html#method.take) on decoders, erroring at the cap | [`with_capacity(wire_len)`](https://doc.rust-lang.org/std/vec/struct.Vec.html#method.with_capacity), unbounded decoders (OOM) | std |
-| <a id="svc-6"></a>**SVC-6** Deserializing | [`serde(try_from)`](https://serde.rs/container-attrs.html#try_from) validation; depth limits ([serde_json: 128](https://docs.rs/crate/serde_json/1.0.151/source/src/de.rs#63)) | `derive(Deserialize)` alone (skips validation); [`disable_recursion_limit`](https://docs.rs/serde_json/1.0.151/serde_json/struct.Deserializer.html#method.disable_recursion_limit), recursive [postcard](https://crates.io/crates/postcard/1.1.3) types (stack overflow) | serde_json [1.0.151](https://crates.io/crates/serde_json/1.0.151) |
+| <a id="svc-6"></a>**SVC-6** Deserializing | [`serde(try_from)`](https://serde.rs/container-attrs.html#try_from) validation; depth limits ([serde_json: 128](https://docs.rs/crate/serde_json/1.0.151/source/src/de.rs#63)) | `derive(Deserialize)` alone (skips validation); [`disable_recursion_limit`](https://docs.rs/serde_json/1.0.151/serde_json/struct.Deserializer.html#method.disable_recursion_limit), recursive [postcard](https://github.com/jamesmunns/postcard/blob/postcard/v1.1.3/source/postcard/src/de/deserializer.rs) types (stack overflow) | serde_json [1.0.151](https://crates.io/crates/serde_json/1.0.151) |
 | <a id="svc-7"></a>**SVC-7** Formats | JSON or TOML; [postcard](https://crates.io/crates/postcard) for binary | [serde_yaml](https://github.com/dtolnay/serde-yaml) (archived); [serde_yml](https://rustsec.org/advisories/RUSTSEC-2025-0068.html) (unsound); bincode ([unmaintained](https://rustsec.org/advisories/RUSTSEC-2025-0141.html), [unlimited](https://docs.rs/bincode/1.3.3/bincode/config/index.html)) | [1.1.3](https://crates.io/crates/postcard/1.1.3) |
 | <a id="svc-8"></a>**SVC-8** SQL | sqlx [≥0.8.1](https://rustsec.org/advisories/RUSTSEC-2024-0363.html) `query!`, [`push_bind`](https://docs.rs/sqlx/0.9.0/sqlx/struct.QueryBuilder.html#method.push_bind) | [`push`](https://docs.rs/sqlx/0.9.0/sqlx/struct.QueryBuilder.html#method.push), [`AssertSqlSafe`](https://docs.rs/sqlx/0.9.0/sqlx/trait.SqlSafeStr.html) on input (injection; [AUD-4](#aud-4)) | [0.9.0](https://crates.io/crates/sqlx/0.9.0) |
 | <a id="svc-9"></a>**SVC-9** User-named paths | [cap-std](https://github.com/sunfishcode/cap-std) [≥4.0.3](https://github.com/sunfishcode/cap-std/security/advisories/GHSA-hp8f-xmx4-4qrg) (3.x: ≥3.4.6) `Dir` (blocks escapes, [CON-6](#con-6)) | [`base.join(input)`](https://doc.rust-lang.org/std/path/struct.Path.html#method.join) (`..` or absolute `input` escapes) | [4.0.3](https://crates.io/crates/cap-std/4.0.3) |
 | <a id="svc-10"></a>**SVC-10** Archives (tar-slip, zip-slip) | tar [≥0.4.46](https://github.com/advisories/GHSA-3pv8-6f4r-ffg2) `unpack_in`; zip [≥2.3.0](https://github.com/advisories/GHSA-94vh-gphv-8pm8) [`extract`](https://docs.rs/zip/8.6.0/zip/read/struct.ZipArchive.html#method.extract) into an empty directory | [`Entry::unpack`](https://docs.rs/tar/0.4.46/tar/struct.Entry.html#method.unpack) (escapes target); [`enclosed_name()`](https://docs.rs/zip/8.6.0/zip/read/struct.ZipFile.html#method.enclosed_name) alone (symlinks escape) | tar [0.4.46](https://crates.io/crates/tar/0.4.46), zip [8.6.0](https://crates.io/crates/zip/8.6.0) |
 | <a id="svc-11"></a>**SVC-11** Child processes | Rust [≥1.81.0](https://blog.rust-lang.org/2024/09/04/cve-2024-43402/) ([`.bat` files](#case-bat)); allowlisted args; [`env_clear()`](https://doc.rust-lang.org/std/process/struct.Command.html#method.env_clear) | Untrusted args to `cmd.exe`, `sh -c`, [`raw_arg`](https://doc.rust-lang.org/std/process/struct.Command.html#method.arg); inherited env (leaks secrets) | std |
 | <a id="svc-12"></a>**SVC-12** User URLs (SSRF) | [`timeout`](https://docs.rs/reqwest/0.13.5/reqwest/struct.ClientBuilder.html#method.timeout); [`Policy::none()`](https://docs.rs/reqwest/0.13.5/reqwest/redirect/struct.Policy.html#method.none); vet IP literals, [`dns_resolver`](https://docs.rs/reqwest/0.13.5/reqwest/struct.ClientBuilder.html#method.dns_resolver) results; [`no_proxy()`](https://docs.rs/reqwest/0.13.5/reqwest/struct.ClientBuilder.html#method.no_proxy) | [Defaults](https://docs.rs/reqwest/0.13.5/reqwest/redirect/index.html): no timeout, 10 redirects, system proxy | reqwest [0.13.5](https://crates.io/crates/reqwest/0.13.5) |
-| <a id="svc-13"></a>**SVC-13** Logs (injection, leaks) | tracing-subscriber [≥0.3.20](https://rustsec.org/advisories/RUSTSEC-2025-0055.html) (escapes ANSI, not newlines); input as fields; [`instrument(skip_all)`](https://docs.rs/tracing/0.1.44/tracing/attr.instrument.html) | `%`, messages with input (forged lines); bare `#[instrument]` (logs arguments) | [0.3.23](https://crates.io/crates/tracing-subscriber/0.3.23) |
+| <a id="svc-13"></a>**SVC-13** Logs (injection, leaks) | tracing-subscriber [≥0.3.20](https://rustsec.org/advisories/RUSTSEC-2025-0055.html) (escapes ANSI, [not newlines](https://github.com/tokio-rs/tracing/blob/tracing-subscriber-0.3.23/tracing-subscriber/src/fmt/format/escape.rs)); input as fields; [`instrument(skip_all)`](https://docs.rs/tracing/0.1.44/tracing/attr.instrument.html) | `%`, messages with input (forged lines); bare `#[instrument]` (logs arguments) | [0.3.23](https://crates.io/crates/tracing-subscriber/0.3.23) |
 | <a id="svc-14"></a>**SVC-14** Error responses | Generic message; log `source()` | [thiserror](https://docs.rs/thiserror/2.0.21/thiserror/) `{0}`, `transparent` (leak internals) | [2.0.21](https://crates.io/crates/thiserror/2.0.21) |
 
 ```rust no_run
 use std::{convert::Infallible, time::Duration};
 use hyper::{Request, Response, body::Incoming, server::conn::http1, service::service_fn};
 use hyper_util::rt::{TokioIo, TokioTimer};
-
-// axum: call the Router as in its serve-with-hyper example; WebSockets need .with_upgrades()
+// axum: copy only the Router-to-service_fn wiring from serve-with-hyper; keep this loop,
+// since that example unwraps accept and binds 0.0.0.0. WebSockets need .with_upgrades().
 async fn handle(_req: Request<Incoming>) -> Result<Response<String>, Infallible> {
     Ok(Response::new("ok".into()))
 }

@@ -30,6 +30,7 @@ web-sys = { version = "0.3.106", features = ["Document", "Element", "Node", "Win
 unsafe_code = "forbid" # UNS-1. Crates that need unsafe: "deny", then #[allow] per module
 
 [lints.clippy] # Opt-in restriction lints (TOOL-4); justify each #[expect(lint, reason = "...")]
+# Existing code: start indexing_slicing, arithmetic_side_effects at "warn"; #![deny] per module
 unwrap_used = "deny"                # LIM-2
 expect_used = "deny"                # LIM-2
 indexing_slicing = "deny"           # LIM-2
