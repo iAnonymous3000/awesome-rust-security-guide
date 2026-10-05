@@ -26,10 +26,14 @@ tokio = { version = "1.53.2", features = ["macros", "net", "rt", "sync", "time"]
 web-sys = { version = "0.3.106", features = ["Document", "Element", "Node", "Window"] }
 
 # The README shows everything below verbatim.
+# Workspace: put all of this in the root Cargo.toml, the lints as [workspace.lints.rust] and
+# [workspace.lints.clippy], then add [lints] workspace = true to every member, root included.
 [lints.rust]
 unsafe_code = "forbid" # UNS-1. Crates that need unsafe: "deny", then #[allow] per module
 
 [lints.clippy] # Opt-in restriction lints (TOOL-4); justify each #[expect(lint, reason = "...")]
+# Only Clippy checks these, so run `cargo clippy --all-targets --locked` in CI. For tests, set
+# allow-unwrap-in-tests, allow-expect-in-tests, allow-indexing-slicing-in-tests in clippy.toml
 # Existing code: start indexing_slicing, arithmetic_side_effects at "warn"; #![deny] per module
 unwrap_used = "deny"                # LIM-2
 expect_used = "deny"                # LIM-2
@@ -38,8 +42,6 @@ arithmetic_side_effects = "deny"    # LIM-3
 as_conversions = "deny"             # AUD-3
 undocumented_unsafe_blocks = "deny" # UNS-4
 
-# Workspace root Cargo.toml only: Cargo ignores profiles in members
-# and dependencies.
 [profile.release]
 # HARD-1: overflow panics instead of wrapping, in dependencies too
 # (`as` casts still truncate silently)
@@ -48,10 +50,10 @@ overflow-checks = true
 # and catch_unwind cannot stop it. A panic while holding a std Mutex
 # poisons it: handle PoisonError instead of unwrapping lock().
 panic = "unwind"
-# HARD-3: drop the symbol table. Panic messages keep source paths, so
-# also remap them in CI release builds (the last matching prefix wins;
-# add one for a CARGO_HOME outside HOME). RUSTFLAGS replaces every
-# rustflags setting in .cargo/config.toml; if you have any, add the
-# flag there with an absolute path instead:
+# HARD-3: strip removes symbol names but is no meaningful security measure (rustc docs), and
+# "symbols" can garble backtraces: drop it if you need crash reports. Panic messages keep
+# source paths, so remap them in CI release builds (the last matching prefix wins; add one
+# for a CARGO_HOME outside HOME). RUSTFLAGS replaces every rustflags setting in
+# .cargo/config.toml; if you have any, add the flag there with an absolute path instead:
 # RUSTFLAGS="--remap-path-prefix=$HOME=~" cargo build --release --locked
 strip = "symbols"

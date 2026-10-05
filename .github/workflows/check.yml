@@ -1,6 +1,7 @@
 # Keeps README.md correct: every Rust block compiles and runs as a doctest,
-# the doctests' dependencies have no known advisories, links resolve, and
-# every Mermaid diagram renders. The weekly run first moves Cargo.lock to the
+# the doctests' dependencies have no known advisories, links resolve, every
+# Mermaid diagram renders, and the README's toml block matches
+# snippets/Cargo.toml. The weekly run first moves Cargo.lock to the
 # latest compatible versions, so breakage from new releases shows up here.
 name: check
 
@@ -102,3 +103,16 @@ jobs:
             count=$((count + 1))
           done
           echo "Rendered $count Mermaid diagram(s) into $out"
+          # Fail if a fence was skipped (indented, ~~~, or text after "mermaid").
+          expected="$(grep -cE '^[[:space:]]*(```|~~~)[[:space:]]*mermaid' README.md || true)"
+          if [ "$count" -eq 0 ] || [ "$count" -ne "$expected" ]; then
+            echo "::error::Rendered $count of $expected Mermaid fences"
+            exit 1
+          fi
+
+      # Ten-things item 10 tells readers to copy this block, so it must stay the real config.
+      - name: README shows the snippets crate's real lints and release profile
+        working-directory: .
+        run: |
+          diff <(awk '/^```toml$/ { f = 1; next } f && /^```$/ { exit } f' README.md) \
+               <(awk 'f; /^# The README shows everything below verbatim\.$/ { f = 1 }' snippets/Cargo.toml)
