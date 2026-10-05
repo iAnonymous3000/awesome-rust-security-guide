@@ -553,35 +553,15 @@ fn main() { check(&[1, 2, 3, 4]) } // smoke test; the fuzzer explores the rest
 
 ## Binary hardening and sandboxing
 
-Rust builds already get address randomization, non-executable data, read-only relocations and stack probes ([rustc](https://doc.rust-lang.org/rustc/exploit-mitigations.html)); stack protectors and control-flow integrity need nightly, except Windows' [`-C control-flow-guard`](https://doc.rust-lang.org/rustc/codegen-options/index.html#control-flow-guard). Set the profile below and confine the process: Rust is one layer, and [Firecracker](https://github.com/firecracker-microvm/firecracker/blob/main/docs/design.md) uses KVM, seccomp syscall filters and a jailer too.
+Rust builds already get address randomization, non-executable data, read-only relocations and stack probes ([rustc](https://doc.rust-lang.org/rustc/exploit-mitigations.html)); stack protectors and control-flow integrity need nightly, except Windows' [`-C control-flow-guard`](https://doc.rust-lang.org/rustc/codegen-options/index.html#control-flow-guard). Set the [release profile](#if-you-do-only-ten-things) and confine the process: Rust is one layer, and [Firecracker](https://github.com/firecracker-microvm/firecracker/blob/main/docs/design.md) uses KVM, seccomp syscall filters and a jailer too.
 
 | Need | Use (minimum safe version) | Avoid (why) | Failure prevented | Status, 2026-10-04 |
 |---|---|---|---|---|
-| <a id="hard-1"></a>**HARD-1** Overflow checks | Profile below; `cargo test --release` | ring <0.17.12: [panics](https://rustsec.org/advisories/RUSTSEC-2025-0009.html) | Silent wraparound | [Default](https://doc.rust-lang.org/cargo/reference/profiles.html#overflow-checks) off |
+| <a id="hard-1"></a>**HARD-1** Overflow checks | [Release profile](#if-you-do-only-ten-things); `cargo test --release` | ring <0.17.12: [panics](https://rustsec.org/advisories/RUSTSEC-2025-0009.html) | Silent wraparound | [Default](https://doc.rust-lang.org/cargo/reference/profiles.html#overflow-checks) off |
 | <a id="hard-2"></a>**HARD-2** Panic policy | Servers: `unwind`, [caught](https://doc.rust-lang.org/std/panic/fn.catch_unwind.html) per request | `abort` there: kills every request | Whole-service outage | [Default](https://doc.rust-lang.org/cargo/reference/profiles.html#panic) `unwind` |
 | <a id="hard-3"></a>**HARD-3** Hide build paths | `strip = "symbols"`; [`--remap-path-prefix`](https://doc.rust-lang.org/rustc/remap-source-paths.html) ([`RUSTFLAGS` overrides config](https://doc.rust-lang.org/cargo/reference/config.html#buildrustflags)) | [Default](https://blog.rust-lang.org/2024/03/21/Rust-1.77.0/#enable-strip-in-release-profiles-by-default): strips debuginfo only | Leaked paths, symbols | [`--remap-path-scope`](https://github.com/rust-lang/rust/pull/147611) stable 1.95; [`trim-paths`](https://github.com/rust-lang/cargo/pull/17488) unstable |
 | <a id="hard-4"></a>**HARD-4** Least privilege | [landlock](https://github.com/landlock-lsm/rust-landlock) 0.4.7 (Linux ≥5.13), [seccompiler](https://docs.rs/seccompiler/0.5.0/seccompiler/) 0.5.0, [cap-std](https://github.com/sunfishcode/cap-std) 4.0.3 | Ignoring [`RulesetStatus`](https://docs.rs/landlock/0.4.7/landlock/enum.RulesetStatus.html): may enforce nothing | Post-exploit access | seccompiler [moved](https://github.com/rust-vmm/rust-vmm/tree/main/seccompiler) to rust-vmm |
 | <a id="hard-5"></a>**HARD-5** Untrusted Wasm | wasmtime, wasmtime-wasi ≥[49.0.2](https://rustsec.org/advisories/RUSTSEC-2026-0327.html); fuel or epochs (CPU), [`StoreLimits`](https://docs.rs/wasmtime/49.0.2/wasmtime/struct.StoreLimitsBuilder.html) (memory) | Older: fuel [bypassable](https://github.com/bytecodealliance/wasmtime/security/advisories/GHSA-m63x-6p34-q65x); [CVE-2026-34971](https://github.com/advisories/GHSA-jhxm-h53p-jm7w) (aarch64), [CVE-2026-34987](https://github.com/advisories/GHSA-xx5w-cvp6-jv83) (Winch) escapes | Host memory corruption, resource exhaustion | Older lines: [48.0.4, 36.0.17](https://github.com/bytecodealliance/wasmtime/security/advisories/GHSA-j366-h8gg-77pm) |
-
-```toml
-# Workspace root Cargo.toml only: Cargo ignores profiles in members
-# and dependencies.
-[profile.release]
-# HARD-1: overflow panics instead of wrapping, in dependencies too
-# (`as` casts still truncate silently)
-overflow-checks = true
-# HARD-2: the default; with "abort", any panic ends the whole process
-# and catch_unwind cannot stop it. A panic while holding a std Mutex
-# poisons it: handle PoisonError instead of unwrapping lock().
-panic = "unwind"
-# HARD-3: drop the symbol table. Panic messages keep source paths, so
-# also remap them in CI release builds (the last matching prefix wins;
-# add one for a CARGO_HOME outside HOME). RUSTFLAGS replaces every
-# rustflags setting in .cargo/config.toml; if you have any, add the
-# flag there with an absolute path instead:
-# RUSTFLAGS="--remap-path-prefix=$HOME=~" cargo build --release --locked
-strip = "symbols"
-```
 
 **Go deeper**
 - [Wasmtime security](https://docs.wasmtime.dev/security.html): use for defense layers.
