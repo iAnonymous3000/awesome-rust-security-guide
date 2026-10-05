@@ -27,7 +27,7 @@ web-sys = { version = "0.3.106", features = ["Document", "Element", "Node", "Win
 
 # The README shows everything below verbatim.
 # Workspace: put all of this in the root Cargo.toml, the lints as [workspace.lints.rust] and
-# [workspace.lints.clippy], then add [lints] workspace = true to every member, root included.
+# [workspace.lints.clippy]; add [lints] workspace = true to every package (never a virtual root).
 [lints.rust]
 unsafe_code = "forbid" # UNS-1. Crates that need unsafe: "deny", then #[allow] per module
 
