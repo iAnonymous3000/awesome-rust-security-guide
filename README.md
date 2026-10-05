@@ -11,7 +11,7 @@ Last verified 2026-10-05 · Rust 1.99 · edition 2024
 | Secure builds, releases, incident response | [Supply chain](#supply-chain-releases-response) | Commit `Cargo.lock` ([SUP-4](#sup-4)); advisory: [SUP-8](#sup-8) |
 | Write or audit `unsafe`, FFI (foreign-code calls) | [Unsafe](#unsafe-and-ffi) | Check each `// SAFETY:` against the callee's `# Safety` docs ([UNS-4](#uns-4)) |
 | Share data across threads or tasks | [Concurrency](#concurrency-and-async) | `thread::scope` or `Arc<Mutex<T>>` ([CON-1](#con-1)) |
-| Audit unfamiliar code | [Auditing](#auditing-rust-code) | Open it only where no credentials live ([AUD-9](#aud-9), [AUD-10](#aud-10)) |
+| Audit unfamiliar code | [Auditing](#auditing-rust-code) | Open it only where no credentials live ([SUP-5](#sup-5), [AUD-9](#aud-9)) |
 | Choose crypto, TLS, secret storage | [Crypto](#crypto-tls-secrets) | rustls ≥0.23.45 ([CRY-1](#cry-1)) |
 | Harden a network service | [Services](#hardening-a-service) | Time out slow clients ([SVC-1](#svc-1)) |
 | Pick a bug-finding tool | [Tools](#which-tool-finds-which-bug) | Run tests reaching `unsafe` under Miri (undefined-behavior detector) ([TOOL-1](#tool-1)) |
@@ -623,7 +623,7 @@ ZK proofs, threshold signatures and homomorphic encryption mostly fail in maths 
 | Need | Use (minimum safe version) | Avoid (why) | Prevents | Status |
 |---|---|---|---|---|
 | <a id="priv-1"></a>**PRIV-1** ZK circuit | [halo2_proofs](https://github.com/zcash/halo2); [MockProver](https://docs.rs/halo2_proofs/0.4.0/halo2_proofs/dev/struct.MockProver.html) rejecting tampered private cells | [Under-constrained](https://arxiv.org/abs/2402.15293) circuits (commonest); arkworks ([prototype](https://github.com/arkworks-rs/groth16)) | Forgery | [0.4.0](https://crates.io/crates/halo2_proofs/0.4.0), 2026-09-29 |
-| <a id="priv-2"></a>**PRIV-2** Groth16 setup | [Per-circuit multi-party ceremony](https://docs.rs/phase2/0.2.2/phase2/) parameters | [`generate_random_parameters`](https://github.com/zkcrypto/bellman/blob/main/groth16/src/generator.rs) (caller keeps forging "toxic waste") | Forgery | [groth16 0.2.0](https://crates.io/crates/groth16/0.2.0), 2026-09-26 |
+| <a id="priv-2"></a>**PRIV-2** Groth16 setup | Per-circuit multi-party ceremony parameters ([phase2](https://docs.rs/phase2/0.2.2/phase2/): bellman 0.1 only) | [`generate_random_parameters`](https://github.com/zkcrypto/bellman/blob/main/groth16/src/generator.rs) (caller keeps "toxic waste") | Forgery | [groth16 0.2.0](https://crates.io/crates/groth16/0.2.0), 2026-09-26 |
 | <a id="priv-3"></a>**PRIV-3** Fiat-Shamir hash | Every public input and commitment | Partial transcripts ([Frozen Heart](https://blog.trailofbits.com/2022/04/13/part-1-coordinated-disclosure-of-vulnerabilities-affecting-girault-bulletproofs-and-plonk/)) | Forgery | [2022-04-13](https://blog.trailofbits.com/2022/04/13/part-1-coordinated-disclosure-of-vulnerabilities-affecting-girault-bulletproofs-and-plonk/) |
 | <a id="priv-4"></a>**PRIV-4** zkVM (proven execution) | [risc0-zkvm ≥3.0.3](https://github.com/advisories/GHSA-jqq4-c7wq-36h7) (2.x: ≥2.3.2) | Old guest image IDs ([CVE-2025-61588](https://github.com/advisories/GHSA-jqq4-c7wq-36h7)); 2.0.0–2.0.2 ([CVE-2025-52484](https://github.com/advisories/GHSA-g3qg-6746-3mg9)) | Forgery | [3.0.6](https://crates.io/crates/risc0-zkvm/3.0.6), 2026-07-17 |
 | <a id="priv-5"></a>**PRIV-5** Threshold ECDSA (t-of-n signing) | [`cggmp24 = "0.7.0-alpha.3"`](https://github.com/LFDT-Lockness/cggmp21) | Crate cggmp21 ([unpatched](https://rustsec.org/advisories/RUSTSEC-2025-0127.html)); GG18/GG20 code like ZenGo multi-party-ecdsa ([BitForge, CVE-2023-33241](https://www.fireblocks.com/blog/gg18-and-gg20-paillier-key-vulnerability-technical-report); [unmaintained](https://github.com/ZenGo-X/multi-party-ecdsa), RustSec silent) | [Key theft](https://rustsec.org/advisories/RUSTSEC-2025-0130.html) | [Pre-release](https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html#pre-releases), [2025-12-04](https://crates.io/crates/cggmp24/0.7.0-alpha.3) |
@@ -667,7 +667,7 @@ Rust code has had memory corruption (`unsafe`, std, compiler) and logic, panic, 
 
 - Report Rust toolchain, Cargo or crates.io vulnerabilities to security@rust-lang.org ([policy](https://rust-lang.org/policies/security/)); crate bugs per [SUP-9](#sup-9).
 - Follow [rustlang-security-announcements](https://groups.google.com/g/rustlang-security-announcements) and the [Rust blog](https://blog.rust-lang.org/) for Rust alerts.
-- Watch the [RustSec Advisory Database](https://rustsec.org/) for crate advisories.
+- Watch [RustSec](https://rustsec.org/) for crate advisories.
 - Discuss on Zulip in [#wg-secure-code](https://rust-lang.zulipchat.com/#narrow/stream/146229-wg-secure-code).
 
 Found advice here that could make code less safe? Report it through [private vulnerability reporting](https://github.com/iAnonymous3000/awesome-rust-security-guide/security/advisories/new). Other errors: open an issue or PR.
