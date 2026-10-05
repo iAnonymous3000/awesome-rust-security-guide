@@ -30,6 +30,7 @@ unsafe_code = "forbid" # UNS-1. Crates that need unsafe: "deny", then #[allow] p
 
 [lints.clippy] # Opt-in restriction lints (TOOL-4); justify each #[expect(lint, reason = "...")]
 unwrap_used = "deny"                # LIM-2
+expect_used = "deny"                # LIM-2
 indexing_slicing = "deny"           # LIM-2
 arithmetic_side_effects = "deny"    # LIM-3
 as_conversions = "deny"             # AUD-3
@@ -47,6 +48,8 @@ overflow-checks = true
 panic = "unwind"
 # HARD-3: drop the symbol table. Panic messages keep source paths, so
 # also remap them in CI release builds (the last matching prefix wins;
-# add one for a CARGO_HOME outside HOME):
+# add one for a CARGO_HOME outside HOME). RUSTFLAGS replaces every
+# rustflags setting in .cargo/config.toml; if you have any, add the
+# flag there, with $HOME spelled out (config files do not expand it):
 # RUSTFLAGS="--remap-path-prefix=$HOME=~" cargo build --release --locked
 strip = "symbols"
