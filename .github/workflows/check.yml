@@ -1,0 +1,95 @@
+# Keeps README.md correct: every Rust block compiles and runs as a doctest,
+# the doctests' dependencies have no known advisories, links resolve, and
+# every Mermaid diagram renders. The weekly run first moves Cargo.lock to the
+# latest compatible versions, so breakage from new releases shows up here.
+name: check
+
+on:
+  pull_request:
+  push:
+  schedule:
+    - cron: "0 6 * * 1" # Mondays 06:00 UTC
+  workflow_dispatch:
+
+# The job only reads the public repository; the default token gets no scopes.
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: README checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    # No caches and no secrets: build scripts and proc macros of the
+    # doctests' dependencies run in this job.
+    defaults:
+      run:
+        shell: bash
+        working-directory: snippets
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master, 2026-10-01
+        with:
+          toolchain: nightly
+
+      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master, 2026-10-01
+        with:
+          toolchain: stable
+
+      - name: Update Cargo.lock (weekly run only)
+        if: github.event_name == 'schedule'
+        run: cargo +stable update
+
+      - name: Doctests (stable)
+        run: cargo +stable test --doc --locked
+
+      # Stable rustdoc ignores the error code on `compile_fail` blocks; nightly checks it.
+      - name: Doctests (nightly)
+        run: cargo +nightly test --doc --locked
+
+      - uses: taiki-e/install-action@83ac0ad63c0167e6f06796fab0fce28db1bf3db0 # v2.87.22
+        with:
+          tool: cargo-deny@0.20.2
+
+      - name: Advisories in the doctests' dependencies
+        run: cargo deny check advisories
+
+      # Exclusions, each with its reason (none needed as of 2026-10-04):
+      # (mailto: links are skipped by lychee's defaults.)
+      - name: Links
+        uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
+        with:
+          lycheeVersion: v0.24.2
+          args: --no-progress --include-fragments README.md
+          jobSummary: false
+
+      - name: Render Mermaid diagrams (default and dark themes)
+        working-directory: .
+        env:
+          # minlag/mermaid-cli:12.0.0, pinned by digest.
+          MERMAID_CLI_IMAGE: minlag/mermaid-cli@sha256:fa995339034aae7e5cd4f61482248b7f5c51be355b1a6f6eda11a2bbf8401f5f
+        run: |
+          out="$RUNNER_TEMP/mermaid"
+          mkdir -p "$out"
+          awk -v dir="$out" '
+            /^```mermaid[[:space:]]*$/ { n++; file = sprintf("%s/diagram-%02d.mmd", dir, n); inside = 1; next }
+            inside && /^```[[:space:]]*$/ { inside = 0; close(file); next }
+            inside { print > file }
+          ' README.md
+          count=0
+          for f in "$out"/*.mmd; do
+            [ -e "$f" ] || continue
+            name="$(basename "$f" .mmd)"
+            for theme in default dark; do
+              docker run --rm -u "$(id -u):$(id -g)" -v "$out:/data" "$MERMAID_CLI_IMAGE" \
+                -q -t "$theme" -i "$name.mmd" -o "$name-$theme.svg"
+            done
+            count=$((count + 1))
+          done
+          echo "Rendered $count Mermaid diagram(s) into $out"

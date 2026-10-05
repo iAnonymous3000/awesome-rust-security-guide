@@ -1,43 +1,79 @@
 # Rust for Security and Privacy Researchers
 
+Last verified 2026-10-04 · Rust 1.99 · edition 2024
+
 ## Table of Contents
 
-1. [Introduction](#introduction)
-2. [Memory Safety](#1-memory-safety)
-3. [Safe Concurrency](#2-safe-concurrency)
-4. [Safe FFI and Interoperability](#3-safe-ffi-and-interoperability)
-5. [Security Auditing and Analysis](#4-security-auditing-and-analysis)
-6. [Secure Cryptography](#5-secure-cryptography)
-7. [Privacy-Preserving Technologies](#6-privacy-preserving-technologies)
-8. [Secure Coding Practices in Rust](#7-secure-coding-practices-in-rust)
-9. [Secure Networking](#8-secure-networking)
-10. [Rust and WebAssembly](#9-rust-and-webassembly)
-11. [Rust and Embedded Systems](#10-rust-and-embedded-systems)
-12. [Formal Verification](#11-formal-verification)
-13. [Case Studies and Real-World Examples](#12-case-studies-and-real-world-examples)
-14. [Rust Security Community and Initiatives](#13-rust-security-community-and-initiatives)
-15. [Comparison with Other Languages](#14-comparison-with-other-languages)
-16. [Security Testing in Rust](#15-security-testing-in-rust)
-17. [Secure API Design](#16-secure-api-design)
-18. [Troubleshooting Guide](#17-troubleshooting-guide)
-19. [Emerging Trends in Rust Security](#18-emerging-trends-in-rust-security)
-20. [Conclusion](#conclusion)
-21. [Glossary](#glossary)
-22. [Additional Resources](#additional-resources)
+1. [Corrected since the 2024 version](#corrected-since-the-2024-version)
+2. [Introduction](#introduction)
+3. [Memory Safety](#1-memory-safety)
+4. [Safe Concurrency](#2-safe-concurrency)
+5. [Safe FFI and Interoperability](#3-safe-ffi-and-interoperability)
+6. [Security Auditing and Analysis](#4-security-auditing-and-analysis)
+7. [Secure Cryptography](#5-secure-cryptography)
+8. [Privacy-Preserving Technologies](#6-privacy-preserving-technologies)
+9. [Secure Coding Practices in Rust](#7-secure-coding-practices-in-rust)
+10. [Secure Networking](#8-secure-networking)
+11. [Rust and WebAssembly](#9-rust-and-webassembly)
+12. [Rust and Embedded Systems](#10-rust-and-embedded-systems)
+13. [Formal Verification](#11-formal-verification)
+14. [Case Studies and Real-World Examples](#12-case-studies-and-real-world-examples)
+15. [Rust Security Community and Initiatives](#13-rust-security-community-and-initiatives)
+16. [Comparison with Other Languages](#14-comparison-with-other-languages)
+17. [Security Testing in Rust](#15-security-testing-in-rust)
+18. [Secure API Design](#16-secure-api-design)
+19. [Troubleshooting Guide](#17-troubleshooting-guide)
+20. [Emerging Trends in Rust Security](#18-emerging-trends-in-rust-security)
+21. [Conclusion](#conclusion)
+22. [Glossary](#glossary)
+23. [Additional Resources](#additional-resources)
+
+---
+
+## Corrected since the 2024 version
+
+Earlier versions of this guide gave advice that could make your code less safe. If you followed it, check your code against the fix.
+
+| Old advice | Risk | Fix |
+| --- | --- | --- |
+| Pin dependencies to exact versions | `=` pins block semver-compatible security fixes and can break resolution | Commit `Cargo.lock`, build with `--locked`, keep caret requirements ([7.5](#75-dependency-management)) |
+| Token example: `OsRng`, `% CHARSET.len()`, token printed | Doesn't compile on rand 0.10; modulo bias; secret in logs | `getrandom::fill` plus hex, never logged ([7.3](#73-secure-randomness)) |
+| Config example fell back to a default database and printed its URL | Fails open; leaks credentials into logs | Fail closed, never log it; know where env vars leak ([7.4](#74-secure-configuration)) |
+| rustls example with `with_safe_defaults` and `webpki` | Pre-0.22 API; `webpki` has had no release since 2023 | rustls ≥0.23.45 with the platform verifier ([8.1](#81-secure-communication-protocols)) |
+| "Implement TLS and SSH" yourself | Home-made protocol bugs | Use rustls, russh or snow ([8.1](#81-secure-communication-protocols)) |
+| JWT example: hard-coded key, no backend, no iss/aud check, token printed | Forgeable tokens; runtime panic on jsonwebtoken ≥10; tokens in logs | 256-bit key from secret storage, explicit backend, required iss/aud ([8.2](#82-authentication-and-authorization)) |
+| "Ownership and type safety extend to FFI boundaries" | Trusting unchecked `extern` signatures | FFI is unchecked: `unsafe extern`, `// SAFETY:` comments ([3.1](#31-foreign-function-interface-ffi)) |
+| Raw pointers made with `&num as *const i32` and `&mut num as *mut i32` | Undefined behaviour: Miri flags the read through `r1` | `&raw const` / `&raw mut` ([3.2](#32-unsafe-code)) |
+| bindgen run from `main`, output in the working directory | Bindings out of sync with the header; every header item exposed | `build.rs`, `$OUT_DIR`, allowlists ([3.3](#33-bindgen)) |
+| C string read with `to_str().unwrap()`, no owner named | Panic on non-UTF-8 input; memory freed by the wrong allocator | Lossy conversion; C memory freed by C ([3.4](#34-ffi-challenges)) |
+| "Arc is both Send and Sync"; spawned threads never joined | `Arc<T>` is thread-safe only if `T` is; lost work at exit | `T: Send + Sync`; join every thread ([2.3](#23-send-and-sync-traits)) |
+| Debug-redacting newtype credited to "move semantics" | Secret stays readable and is never wiped | `secrecy::SecretString` ([16.1](#161-type-driven-api-design)) |
+| `#[error("Internal server error: {0}")]` | Internal error text (paths) sent to clients | Generic message, inner error kept as `source()` ([16.2](#162-error-handling-in-apis)) |
+| "Rust prevents XSS" | Skipped output encoding | Escape output, sanitize HTML, deploy CSP ([9.1](#91-wasm-security-benefits)) |
+| `cargo audit` as the fix for crypto misuse; RustCrypto "audited and formally verified" | False assurance | Misuse-resistant APIs and review; check each crate's audit scope ([5.2](#52-auditing-and-verification), [17.3](#173-cryptographic-misuse)) |
+| Groth16 example with a single-party setup | Whoever ran the setup can forge proofs | Removed; use a multi-party ceremony ([6.1](#61-zero-knowledge-proofs)) |
+| Paillier presented as MPC; GG18/GG20-era links | Unmaintained code open to key extraction (BitForge) | Removed; maintained threshold libraries ([6.2](#62-secure-multi-party-computation)) |
+| PQClean for post-quantum crypto | Archived; Rust wrapper unmaintained | ml-kem, ml-dsa or rustls's hybrid key exchange ([18.3](#183-post-quantum-cryptography)) |
+| Fuzz target that parsed integers with `std` | Tests the standard library, not your code | Fuzz your own decoder with a round-trip check ([15.1](#151-fuzz-testing)) |
+| Prusti example as the model for verification | Its contract admitted an overflowing input; Prusti is dormant | Kani and other active verifiers ([11.1](#111-rust-verification-tools)) |
+| A libssh2 use-after-free "that Rust would have prevented" | Overstates what Rust prevents | It was libssh CVE-2018-10933, a logic bug ([1.3](#13-lifetimes)) |
+| Firecracker's and Tock's isolation credited to Rust | Dropping the other isolation layers | KVM, seccomp and the jailer; Tock's MPU ([12](#12-case-studies-and-real-world-examples)) |
 
 ---
 
 ## Introduction
 
-Rust is a systems programming language that prioritizes safety, concurrency, and memory efficiency. Its unique features make it an attractive choice for security and privacy-sensitive applications. Rust's growing adoption in the security and privacy industry can be attributed to its ability to prevent common vulnerabilities and ensure secure development practices.
+Rust is a systems programming language that prioritizes safety, concurrency, and memory efficiency. Its unique features make it an attractive choice for security and privacy-sensitive applications.
 
-This guide aims to provide a comprehensive overview of Rust's security features and best practices for security and privacy researchers. Whether you're new to Rust or an experienced developer looking to leverage Rust for security-critical applications, this guide offers valuable insights and practical advice.
+This guide covers Rust's security features, where they stop, and best practices for security and privacy researchers. This repository's CI compiles the Rust examples below and runs most of them; the one it skips says why.
 
 ---
 
 ## 1. Memory Safety
 
 One of Rust's primary strengths is its focus on memory safety. It prevents common memory-related vulnerabilities, such as buffer overflows, null pointer dereferences, and use-after-free errors, through its ownership system and borrow checker.
+
+These guarantees cover safe code, and only while every `unsafe` block you depend on, the standard library and the compiler are sound. A compiler soundness bug open since 2015 ([rust-lang/rust#25860](https://github.com/rust-lang/rust/issues/25860)) lets 100% safe code overflow buffers ([RUSTSEC-2025-0028](https://rustsec.org/advisories/RUSTSEC-2025-0028.html)), so safe Rust is no sandbox for untrusted code. Rust also doesn't prevent logic bugs, deadlocks, leaks or panics, and integer overflow silently wraps in release builds unless you enable `overflow-checks` ([Reference](https://doc.rust-lang.org/reference/behavior-not-considered-unsafe.html), [Cargo profiles](https://doc.rust-lang.org/cargo/reference/profiles.html)).
 
 ### 1.1 Ownership
 
@@ -121,7 +157,7 @@ fn main() {
 
 **Real-World Example:**
 
-In 2019, a vulnerability was discovered in the popular SSH client library, libssh2, which allowed attackers to bypass authentication and gain unauthorized access. The vulnerability was caused by a use-after-free error in the library's code. Had the library been written in Rust, the ownership system and borrow checker would have prevented this vulnerability by ensuring proper memory management and ownership rules.
+In 2018, the libssh server let clients skip authentication: its state machine accepted a client-sent `SSH2_MSG_USERAUTH_SUCCESS` message, so a client could log in with no credentials (CVE-2018-10933, [advisory](https://www.libssh.org/security/advisories/CVE-2018-10933.txt)). That is a logic bug. Ownership and borrowing would not have prevented it; lifetimes stop dangling references, not mistakes in protocol state.
 
 ---
 
@@ -133,7 +169,7 @@ Rust's ownership system and type system enable safe and efficient concurrent pro
 
 - Rust provides a standard library for creating and managing threads.
 - The `std::thread` module allows spawning new threads and provides synchronization primitives like mutexes and channels.
-- Rust's ownership system ensures thread safety by preventing data races.
+- Rust's ownership system prevents data races in safe code. It doesn't prevent race conditions or deadlocks ([Nomicon](https://doc.rust-lang.org/nomicon/races.html)).
 
 **Example:**
 
@@ -151,14 +187,14 @@ fn main() {
         println!("Main: number {}", i);
     }
 
-    handle.join().unwrap();
+    handle.join().expect("worker thread panicked");
 }
 ```
 
 ### 2.2 Synchronization Primitives
 
 - Rust offers various synchronization primitives in the `std::sync` module.
-- Mutexes (`Mutex<T>`) allow exclusive access to shared data.
+- Mutexes (`Mutex<T>`) allow exclusive access to shared data. If a thread panics while holding the lock, the mutex is poisoned and later `lock()` calls return `Err` ([Mutex docs](https://doc.rust-lang.org/std/sync/struct.Mutex.html)).
 - Read-Write Locks (`RwLock<T>`) provide concurrent read access and exclusive write access.
 - Channels (`std::sync::mpsc`) enable safe communication between threads.
 
@@ -175,17 +211,17 @@ fn main() {
     for _ in 0..10 {
         let counter = Arc::clone(&counter);
         let handle = thread::spawn(move || {
-            let mut num = counter.lock().unwrap();
+            let mut num = counter.lock().expect("mutex poisoned");
             *num += 1;
         });
         handles.push(handle);
     }
 
     for handle in handles {
-        handle.join().unwrap();
+        handle.join().expect("worker thread panicked");
     }
 
-    println!("Result: {}", *counter.lock().unwrap());
+    println!("Result: {}", *counter.lock().expect("mutex poisoned"));
 }
 ```
 
@@ -195,30 +231,38 @@ fn main() {
 - A type is `Send` if it can be safely transferred between threads.
 - A type is `Sync` if it can be safely shared between threads.
 - The compiler enforces these traits, preventing potential concurrency bugs.
+- `Arc<T>` is `Send` and `Sync` only when `T: Send + Sync`: `Arc<i32>` is both, but `Arc<RefCell<T>>` is neither ([Arc docs](https://doc.rust-lang.org/std/sync/struct.Arc.html)).
+- Join the threads you spawn. When `main` returns, the process exits even if other threads are still running ([std::thread](https://doc.rust-lang.org/std/thread/index.html)).
 
 **Example:**
 
 ```rust
-use std::rc::Rc;
 use std::sync::Arc;
+use std::thread;
 
 fn main() {
-    let a = 5;
-    let b = String::from("Hello");
-    let c = vec![1, 2, 3];
+    let (a, b, c) = (5, String::from("Hello"), vec![1, 2, 3]);
+    let h1 = thread::spawn(move || println!("{a}, {b}, {c:?}"));
 
-    std::thread::spawn(move || {
-        println!("{}, {}, {:?}", a, b, c);
-    });
-
-    // Rc is not Send
-    let rc = Rc::new(42);
-    // Uncommenting the following line would result in a compile-time error
-    // std::thread::spawn(move || println!("{}", rc));
-
-    // Arc is both Send and Sync
+    // Arc<i32> is Send and Sync because i32 is.
     let arc = Arc::new(42);
-    std::thread::spawn(move || println!("{}", arc));
+    let h2 = thread::spawn(move || println!("{arc}"));
+
+    // Without these joins, main can exit before either thread prints.
+    h1.join().expect("thread 1 panicked");
+    h2.join().expect("thread 2 panicked");
+}
+```
+
+`Rc` is not `Send`, so the compiler rejects moving one into another thread (error E0277):
+
+```rust compile_fail E0277
+use std::rc::Rc;
+
+fn main() {
+    let rc = Rc::new(42);
+    let handle = std::thread::spawn(move || println!("{rc}"));
+    handle.join().expect("thread panicked");
 }
 ```
 
@@ -228,29 +272,29 @@ For more information on Rust's concurrency features, see the [official documenta
 
 ## 3. Safe FFI and Interoperability
 
-Rust provides mechanisms for safe interaction with foreign code and systems.
+Rust provides mechanisms for interacting with foreign code and systems; keeping each foreign call sound is up to you.
 
 ### 3.1 Foreign Function Interface (FFI)
 
 - Rust allows calling functions from other languages (e.g., C) and being called by other languages.
 - The `extern` keyword is used to declare external functions and link to foreign libraries.
-- Rust's ownership system and type safety extend to FFI boundaries, preventing common pitfalls.
+- The compiler cannot check foreign code. It trusts your `extern` declarations, and a wrong signature is undefined behaviour, so calling a foreign function is `unsafe` and its contract is yours to uphold ([edition guide](https://doc.rust-lang.org/edition-guide/rust-2024/unsafe-extern.html)).
+- Since edition 2024, extern blocks must be written `unsafe extern`. Mark an item `safe` only if it is sound for every input: C's `abs(INT_MIN)` is undefined ([POSIX](https://pubs.opengroup.org/onlinepubs/9799919799/functions/abs.html)), so `abs` stays unsafe.
 
 **Example of calling a C function from Rust:**
 
-```rust
-use std::os::raw::c_int;
+```rust no_run
+use std::ffi::c_int;
 
-#[link(name = "m")]
-extern "C" {
+// The compiler trusts this signature; it cannot check it against the C library.
+unsafe extern "C" {
     fn abs(input: c_int) -> c_int;
 }
 
 fn main() {
-    unsafe {
-        let result = abs(-42);
-        println!("Absolute value of -42: {}", result);
-    }
+    // SAFETY: -42 is not INT_MIN, so C's abs is defined for this argument.
+    let result = unsafe { abs(-42) };
+    println!("Absolute value of -42: {result}");
 }
 ```
 
@@ -266,9 +310,12 @@ fn main() {
 fn main() {
     let mut num = 5;
 
-    let r1 = &num as *const i32;
-    let r2 = &mut num as *mut i32;
+    // `&raw` creates raw pointers without creating references first.
+    let r1 = &raw const num;
+    let r2 = &raw mut num;
 
+    // SAFETY: both pointers point to the live local `num`, and no reference
+    // to `num` exists while they are used.
     unsafe {
         println!("r1 is: {}", *r1);
         *r2 += 1;
@@ -277,56 +324,71 @@ fn main() {
 }
 ```
 
-For more information on unsafe code in Rust, see the [official documentation](https://doc.rust-lang.org/book/ch19-01-unsafe-rust.html).
+Write `&raw const` / `&raw mut` (Rust 1.82+, [release notes](https://blog.rust-lang.org/2024/10/17/Rust-1.82.0/)), not `&num as *const i32` and `&mut num as *mut i32`: with the casts, creating the `&mut` invalidates `r1`, and Miri reports undefined behaviour at `*r1`. Give every `unsafe` block a `// SAFETY:` comment that states why it is sound.
+
+For more information on unsafe code in Rust, see the [official documentation](https://doc.rust-lang.org/book/ch20-01-unsafe-rust.html).
 
 ### 3.3 Bindgen
 
 - [Bindgen](https://github.com/rust-lang/rust-bindgen) is a tool that automatically generates Rust FFI bindings from C/C++ header files.
 - It simplifies the process of interfacing with existing libraries and reduces the risk of manual errors.
+- Run it from a build script (`build.rs`) with `bindgen` under `[build-dependencies]`, write the output to `$OUT_DIR`, and generate bindings only for the items you use ([bindgen tutorial](https://rust-lang.github.io/rust-bindgen/tutorial-3.html), [allowlists](https://docs.rs/bindgen/0.73.2/bindgen/struct.Builder.html)).
 
-**Example of using Bindgen (requires the `bindgen` crate):**
+**Example `build.rs` (based on the bindgen tutorial's bzip2 example):**
 
-```rust
-use std::path::PathBuf;
+```rust no_run
+use std::{env, path::PathBuf};
 
 fn main() {
+    println!("cargo:rustc-link-lib=bz2");
+
     let bindings = bindgen::Builder::default()
         .header("wrapper.h")
+        // Generate only what you call, so every exposed item gets reviewed.
+        .allowlist_function("BZ2_.*")
+        .allowlist_type("bz_stream")
+        .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
         .generate()
         .expect("Unable to generate bindings");
 
-    let out_path = PathBuf::from("bindings.rs");
+    let out_path = PathBuf::from(env::var("OUT_DIR").expect("Cargo sets OUT_DIR"));
     bindings
-        .write_to_file(out_path)
+        .write_to_file(out_path.join("bindings.rs"))
         .expect("Couldn't write bindings!");
 }
 ```
 
+Load the result in your crate with `include!(concat!(env!("OUT_DIR"), "/bindings.rs"));` ([tutorial](https://rust-lang.github.io/rust-bindgen/tutorial-4.html)).
+
 ### 3.4 FFI Challenges
 
-- When dealing with C/C++ interoperability, it's important to be aware of specific challenges, such as ensuring null pointer checks when working with C strings.
-- Rust's type system and ownership model can help mitigate these challenges, but careful attention and proper handling are still required.
+- Check pointers from C for null. `CStr::from_ptr` also needs a NUL-terminated string that doesn't change while you use it, and `to_str()` fails on non-UTF-8 bytes, so don't `unwrap()` it ([CStr docs](https://doc.rust-lang.org/std/ffi/struct.CStr.html)).
+- Decide who frees every pointer. Memory allocated by C is freed through C (`free` or the library's own function). A pointer from `CString::into_raw` must come back through `CString::from_raw`, and never goes to C's `free` ([CString docs](https://doc.rust-lang.org/std/ffi/struct.CString.html)).
 
 **Example of safely handling a C string:**
 
-```rust
-use std::ffi::CStr;
-use std::os::raw::c_char;
+```rust no_run
+use std::ffi::{CStr, c_char, c_void};
 
-extern "C" {
-    fn get_c_string() -> *const c_char;
+unsafe extern "C" {
+    // Returns a malloc'd copy of `s`, or NULL; the caller frees it with `free`.
+    fn strdup(s: *const c_char) -> *mut c_char;
+    fn free(ptr: *mut c_void);
 }
 
 fn main() {
-    unsafe {
-        let c_str = get_c_string();
-        if !c_str.is_null() {
-            let rust_str = CStr::from_ptr(c_str).to_str().unwrap();
-            println!("Received string: {}", rust_str);
-        } else {
-            println!("Received null pointer");
-        }
+    // SAFETY: a c"..." literal is NUL-terminated and lives for the whole program.
+    let ptr = unsafe { strdup(c"hello from C".as_ptr()) };
+    if ptr.is_null() {
+        eprintln!("strdup failed");
+        return;
     }
+    // SAFETY: `ptr` is non-null, NUL-terminated and not freed until below.
+    // Copy it out; the lossy conversion can't panic on invalid UTF-8.
+    let text = unsafe { CStr::from_ptr(ptr) }.to_string_lossy().into_owned();
+    // SAFETY: C allocated `ptr`, so C's `free` releases it, exactly once.
+    unsafe { free(ptr.cast()) };
+    println!("Received string: {text}");
 }
 ```
 
@@ -362,8 +424,15 @@ fn handle_connection(state: ConnectionState) {
 }
 
 fn main() {
-    let state = ConnectionState::Connected("192.168.1.1".to_string());
-    handle_connection(state);
+    let states = [
+        ConnectionState::Disconnected,
+        ConnectionState::Connecting,
+        ConnectionState::Connected("192.168.1.1".to_string()),
+        ConnectionState::Error("timed out".to_string()),
+    ];
+    for state in states {
+        handle_connection(state);
+    }
 }
 ```
 
@@ -375,13 +444,14 @@ fn main() {
 ### 4.3 Static Analysis Tools
 
 - Rust has a growing ecosystem of static analysis tools that aid in security auditing.
-- Tools like [Clippy](https://github.com/rust-lang/rust-clippy) and [Rust Analyzer](https://github.com/rust-lang/rust-analyzer) provide linting, code analysis, and vulnerability detection.
+- [Clippy](https://github.com/rust-lang/rust-clippy) is a general linter. Its security value comes mostly from opt-in "restriction" lints such as `undocumented_unsafe_blocks`, `unwrap_used`, `indexing_slicing`, `arithmetic_side_effects` and `as_conversions` ([lint list](https://rust-lang.github.io/rust-clippy/stable/index.html)).
+- [rust-analyzer](https://github.com/rust-lang/rust-analyzer) is an IDE language server, not a vulnerability scanner. It assumes all code is trusted and runs a project's build scripts and proc macros when you open it, so open untrusted repositories only in a disposable VM or with it disabled ([security notes](https://rust-analyzer.github.io/book/security.html)).
 - These tools complement manual code review and help catch potential security flaws early in the development process.
 
-**Example of using Clippy:**
+**Example of using Clippy with some restriction lints:**
 
 ```bash
-cargo clippy
+cargo clippy -- -W clippy::undocumented_unsafe_blocks -W clippy::unwrap_used -W clippy::indexing_slicing
 ```
 
 ### 4.4 Limitations and Complementary Approaches
@@ -405,21 +475,21 @@ Rust has a robust ecosystem of cryptographic libraries that prioritize security 
 **Example of using RustCrypto for SHA-256 hashing:**
 
 ```rust
-use sha2::{Sha256, Digest};
+use sha2::{Digest, Sha256};
 
 fn main() {
-    let mut hasher = Sha256::new();
-    hasher.update(b"hello world");
-    let result = hasher.finalize();
-    println!("SHA-256 hash: {:x}", result);
+    let digest = Sha256::digest(b"hello world");
+    // sha2 0.11 digests don't implement LowerHex, so hex-encode them.
+    println!("SHA-256 hash: {}", hex::encode(digest));
 }
 ```
 
 ### 5.2 Auditing and Verification
 
-- Rust's strong type system and ownership model facilitate formal verification and auditing of cryptographic implementations.
-- The Rust language and its ecosystem promote a culture of security audits and peer review.
-- Many RustCrypto libraries have undergone security audits and formal verification to ensure their correctness and security.
+- Check each crate's audit scope before you rely on it. Only a few RustCrypto crates have third-party audits: NCC Group audited aes-gcm and chacha20poly1305 in 2020, and k256 and crypto-bigint; Include Security audited rsa ([aes-gcm](https://github.com/RustCrypto/AEADs/blob/master/aes-gcm/README.md), [k256](https://github.com/RustCrypto/elliptic-curves/blob/master/k256/README.md), [rsa](https://github.com/RustCrypto/RSA/blob/master/README.md)).
+- Others say they have never been independently audited, including ml-kem, ml-dsa, p256 and ecdsa ([ml-kem](https://github.com/RustCrypto/KEMs/blob/master/ml-kem/README.md), [p256](https://github.com/RustCrypto/elliptic-curves/blob/master/p256/README.md)). RustCrypto crates are not formally verified ([rustls-rustcrypto](https://github.com/RustCrypto/rustls-rustcrypto/blob/master/README.md)).
+- `rsa` is vulnerable to the Marvin timing attack, which can recover private keys, and has no patched release ([RUSTSEC-2023-0071](https://rustsec.org/advisories/RUSTSEC-2023-0071.html)).
+- Memory safety doesn't stop side channels: LLVM inserted a branch into curve25519-dalek's scalar subtraction, a timing leak fixed in 4.1.3 ([RUSTSEC-2024-0344](https://rustsec.org/advisories/RUSTSEC-2024-0344.html)).
 
 For more information on secure cryptography in Rust, see the [RustCrypto repository](https://github.com/RustCrypto) and the [Rust Cryptography Libraries](https://lib.rs/cryptography) on Lib.rs.
 
@@ -433,81 +503,22 @@ Rust's safety guarantees and performance make it well-suited for implementing pr
 
 - Zero-Knowledge Proofs (ZKPs) allow proving statements without revealing additional information.
 - Rust's safety and performance characteristics make it a good choice for implementing ZKP systems.
-- Libraries like [Bellman](https://github.com/zkcrypto/bellman) and [Arkworks](https://github.com/arkworks-rs) provide building blocks for constructing ZKP circuits and protocols.
-
-**Example of using Bellman for a simple ZKP:**
-
-```rust
-use bellman::{Circuit, ConstraintSystem, SynthesisError};
-use bellman::groth16::{create_random_proof, generate_random_parameters, prepare_verifying_key, verify_proof};
-use bls12_381::Bls12;
-use rand::rngs::OsRng;
-
-// Define a simple circuit
-struct MyCircuit {
-    x: Option<u64>,
-}
-
-impl Circuit<Bls12> for MyCircuit {
-    fn synthesize<CS: ConstraintSystem<Bls12>>(self, cs: &mut CS) -> Result<(), SynthesisError> {
-        let x = cs.alloc(|| "x", || self.x.ok_or(SynthesisError::AssignmentMissing))?;
-        cs.enforce(
-            || "x * x = x",
-            |lc| lc + x,
-            |lc| lc + x,
-            |lc| lc + x,
-        );
-        Ok(())
-    }
-}
-
-fn main() {
-    let params = {
-        let c = MyCircuit { x: None };
-        generate_random_parameters(c, &mut OsRng).unwrap()
-    };
-    let pvk = prepare_verifying_key(&params.vk);
-
-    let circuit = MyCircuit { x: Some(1) };
-    let proof = create_random_proof(circuit, &params, &mut OsRng).unwrap();
-
-    assert!(verify_proof(&pvk, &proof, &[]).is_ok());
-}
-```
+- Libraries like [Bellman](https://github.com/zkcrypto/bellman) and [Arkworks](https://github.com/arkworks-rs) provide building blocks for constructing ZKP circuits and protocols. Arkworks describes itself as an academic prototype that is not ready for production ([ark-groth16](https://github.com/arkworks-rs/groth16)).
+- Under-constrained circuits are the most common vulnerability class in real ZK circuits, and Rust's type system doesn't catch them ([SoK of 141 SNARK bugs](https://arxiv.org/abs/2402.15293)).
+- Groth16 needs a trusted setup. Whoever runs bellman's `generate_random_parameters` samples the setup secret ("toxic waste") and can forge proofs ([generator source](https://github.com/zkcrypto/bellman/blob/main/groth16/src/generator.rs)), so production parameters come from a multi-party ceremony, which is safe if at least one participant deletes their share. [halo2](https://github.com/zcash/halo2) needs no trusted setup.
 
 ### 6.2 Secure Multi-Party Computation
 
 - Secure Multi-Party Computation (MPC) allows multiple parties to jointly compute a function without revealing their inputs.
-- Rust's memory safety and concurrency features are beneficial for implementing MPC protocols.
-- Libraries like [KZen Networks' multi-party ECDSA](https://github.com/KZen-networks/ecdsa-mpc) and [frost](https://github.com/serai-dex/frost) showcase Rust's potential in the MPC domain.
-
-**Example of using Paillier encryption for MPC:**
-
-```rust
-use paillier::*;
-use paillier::unknown_order::BigNumber;
-
-fn main() {
-    let (ek, dk) = Paillier::keypair().keys();
-
-    let m1 = BigNumber::from(10u64);
-    let m2 = BigNumber::from(20u64);
-
-    let c1 = Paillier::encrypt(&ek, &m1);
-    let c2 = Paillier::encrypt(&ek, &m2);
-
-    let c_sum = Paillier::add(&ek, &c1, &c2);
-
-    let decrypted_sum = Paillier::decrypt(&dk, &c_sum);
-    assert_eq!(decrypted_sum, BigNumber::from(30u64));
-}
-```
+- For threshold Schnorr signatures, use [ZcashFoundation/frost](https://github.com/ZcashFoundation/frost) (FROST, RFC 9591). For threshold ECDSA, use [cggmp24](https://github.com/LFDT-Lockness/cggmp21) 0.7.0-alpha.2 or later: its patched releases are pre-releases, which Cargo selects only when the version requirement names a pre-release, such as `cggmp24 = "0.7.0-alpha.3"` ([RUSTSEC-2025-0130](https://rustsec.org/advisories/RUSTSEC-2025-0130.html), [Cargo Book](https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html)).
+- Avoid GG18/GG20 implementations such as ZenGo-X's multi-party-ecdsa. It is unmaintained and unpatched for BitForge (CVE-2023-33241), where a malicious party extracts the full key ([Fireblocks report](https://www.fireblocks.com/blog/gg18-and-gg20-paillier-key-vulnerability-technical-report)). RustSec has no advisory for it, so `cargo audit` won't warn you.
+- Paillier is additively homomorphic encryption, not an MPC protocol. Protocols such as GG18/GG20 use it as a building block, and each party's Paillier key needs a zero-knowledge proof that it is well formed.
 
 ### 6.3 Homomorphic Encryption
 
 - Homomorphic Encryption (HE) enables computations on encrypted data without decryption.
-- Rust's performance and safety make it a suitable language for implementing HE schemes.
-- Libraries like [concrete](https://github.com/zama-ai/concrete) and [tfhe-rs](https://github.com/tfhe/tfhe-rs) implement various HE primitives and schemes.
+- [tfhe-rs](https://github.com/zama-ai/tfhe-rs) (crate `tfhe`) is Zama's Rust FHE library. Its BSD-3-Clause-Clear licence allows free use only for development, research, prototyping and experimentation; commercial use needs Zama's patent licence. Its README also states the security target of its default parameters (IND-CPA^D) and that it doesn't yet mitigate side channels.
+- [Concrete](https://github.com/zama-ai/concrete) is Zama's TFHE compiler for Python; from Rust, use tfhe-rs.
 
 ---
 
@@ -517,26 +528,27 @@ Rust's design encourages secure coding practices, but it's still important to fo
 
 ### 7.1 Input Validation and Sanitization
 
-- Always validate and sanitize external inputs to prevent security vulnerabilities like SQL injection and cross-site scripting (XSS).
-- Use Rust's type system and libraries to enforce strict input validation and sanitization.
+- Validate external input against what you expect (an allowlist) and reject the rest. Use Rust's types to keep validated and unvalidated data apart.
+- Validation alone doesn't stop injection. Keep data out of code: bind SQL parameters (sqlx `bind`, `QueryBuilder::push_bind`) instead of formatting queries ([QueryBuilder docs](https://docs.rs/sqlx/0.9.0/sqlx/struct.QueryBuilder.html)), and escape output for HTML ([9.1](#91-wasm-security-benefits)).
 - Be cautious when using unsafe code or interacting with untrusted data.
 
 **Example of input validation:**
 
 ```rust
 use regex::Regex;
+use std::sync::LazyLock;
+
+// Compiled once. The pattern is a constant, so a failure here is a bug, not bad input.
+static USERNAME: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^[a-zA-Z0-9_]{3,20}$").expect("valid regex"));
 
 fn validate_username(username: &str) -> bool {
-    let re = Regex::new(r"^[a-zA-Z0-9_]{3,20}$").unwrap();
-    re.is_match(username)
+    USERNAME.is_match(username)
 }
 
 fn main() {
-    let valid_username = "john_doe123";
-    let invalid_username = "user@name";
-
-    println!("Valid username: {}", validate_username(valid_username));
-    println!("Invalid username: {}", validate_username(invalid_username));
+    assert!(validate_username("john_doe123"));
+    assert!(!validate_username("user@name"));
 }
 ```
 
@@ -569,77 +581,73 @@ fn main() {
 
 ### 7.3 Secure Randomness
 
-- Use cryptographically secure random number generators for security-sensitive operations.
-- Avoid using `rand::Rng` for cryptographic purposes unless it's backed by a secure source.
-- Use libraries like `rand_core` with `OsRng` or `getrandom` for secure randomness.
+- Use cryptographically secure random number generators for security-sensitive operations. For keys and tokens, take bytes straight from the operating system with `getrandom::fill` ([getrandom](https://github.com/rust-random/getrandom)).
+- rand 0.10 renamed its API: `OsRng` is now `SysRng`, `RngCore` is now `Rng`, and the old `Rng` is now `RngExt`, so `rand::Rng` now means the core trait ([rand 0.10 update guide](https://rust-random.github.io/book/update-0.10.html)).
+- Don't map random numbers onto a character set with `%`: unless the set's size divides the generator's range, some characters come up more often (modulo bias). Encode random bytes as hex or base64 instead.
+- Never print or log tokens.
 
 **Example of using secure randomness:**
 
 ```rust
-use rand::RngCore;
-use rand::rngs::OsRng;
-
-fn generate_secure_token() -> String {
-    const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ\
-                            abcdefghijklmnopqrstuvwxyz\
-                            0123456789)(*&^%$#@!~";
-    const TOKEN_LEN: usize = 32;
-    let mut rng = OsRng;
-
-    let token: String = (0..TOKEN_LEN)
-        .map(|_| {
-            let idx = (rng.next_u32() as usize) % CHARSET.len();
-            CHARSET[idx] as char
-        })
-        .collect();
-
-    token
+/// A 256-bit token from the OS random number generator, hex-encoded.
+fn generate_secure_token() -> Result<String, getrandom::Error> {
+    let mut bytes = [0u8; 32];
+    getrandom::fill(&mut bytes)?;
+    Ok(hex::encode(bytes))
 }
 
-fn main() {
-    let secure_token = generate_secure_token();
-    println!("Secure token: {}", secure_token);
+fn main() -> Result<(), getrandom::Error> {
+    let token = generate_secure_token()?;
+    // Hand the token to its owner; never print or log it.
+    assert_eq!(token.len(), 64);
+    Ok(())
 }
 ```
 
 ### 7.4 Secure Configuration
 
 - Store sensitive configuration data, such as API keys and passwords, securely.
-- Avoid hardcoding secrets in the source code; instead, use environment variables or secure configuration management systems.
+- Keep secrets out of source code; prefer a secret manager. Environment variables leak: child processes inherit them unless you call `Command::env_clear` or `env_remove` ([Command docs](https://doc.rust-lang.org/std/process/struct.Command.html)), `/proc/<pid>/environ` keeps the startup values even after `remove_var` ([proc_pid_environ(5)](https://man7.org/linux/man-pages/man5/proc_pid_environ.5.html)), and core dumps contain them ([core(5)](https://man7.org/linux/man-pages/man5/core.5.html)).
+- Fail closed: if a required setting is missing, refuse to start instead of using a default. Never log secrets or URLs that contain them.
+- To load a `.env` file, use `dotenvy`; `dotenv` is unmaintained ([RUSTSEC-2021-0141](https://rustsec.org/advisories/RUSTSEC-2021-0141.html)).
 - Regularly rotate and update secrets to minimize the impact of potential breaches.
 
-**Example of using environment variables for configuration:**
+**Example of reading configuration from the environment:**
 
-```rust
-use std::env;
-
-fn get_database_url() -> String {
-    env::var("DATABASE_URL").unwrap_or_else(|_| {
-        eprintln!("DATABASE_URL not set. Using default.");
-        "postgres://localhost/myapp".to_string()
-    })
-}
+```rust no_run
+use std::{env, process};
 
 fn main() {
-    let db_url = get_database_url();
-    println!("Using database URL: {}", db_url);
+    // Fail closed: refuse to start instead of falling back to a default database.
+    let Ok(db_url) = env::var("DATABASE_URL") else {
+        eprintln!("DATABASE_URL is missing or not valid UTF-8");
+        process::exit(1);
+    };
+    // Never log `db_url`: connection strings usually embed credentials.
+    connect(&db_url);
+}
+
+fn connect(_db_url: &str) {
+    // Open your connection pool here.
 }
 ```
 
 ### 7.5 Dependency Management
 
 - Keep dependencies up to date to ensure you have the latest security patches and bug fixes.
-- Regularly audit and review dependencies for known vulnerabilities using tools like [`cargo-audit`](https://github.com/RustSec/rustsec/tree/main/cargo-audit).
-- Pin dependencies to specific versions to prevent unexpected changes and ensure reproducible builds.
+- Regularly check dependencies against the RustSec Advisory Database using tools like [`cargo-audit`](https://github.com/RustSec/rustsec/tree/main/cargo-audit) or [`cargo deny check advisories`](https://github.com/EmbarkStudios/cargo-deny).
+- Don't pin exact versions (`=1.2.3`) in `Cargo.toml`: exact pins block semver-compatible fixes and can make resolution fail. For reproducible builds, commit `Cargo.lock` and build with `--locked`; keep default caret requirements, and test against the latest versions on a schedule, for example a CI job that runs `cargo update`, Dependabot or Renovate ([Cargo Book](https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html), [Cargo team](https://blog.rust-lang.org/2023/08/29/committing-lockfiles/)).
+- `cargo install` ignores the tool's own `Cargo.lock` unless you pass `--locked` ([cargo install](https://doc.rust-lang.org/cargo/commands/cargo-install.html)).
+- Building a dependency runs its build script and procedural macros on your machine, so only build code you trust ([Rust blog](https://blog.rust-lang.org/2022/09/14/cargo-cves/)).
 
 **Example of using `cargo-audit`:**
 
 ```bash
-cargo install cargo-audit
+cargo install cargo-audit --locked
 cargo audit
 ```
 
-For more secure coding guidelines, refer to the [Rust Security Guidelines](https://anssi-fr.github.io/rust-guide/) and the [Rust Security Cheat Sheet](https://cheats.rs/#cryptography-and-security).
+For more secure coding guidelines, refer to the [ANSSI Secure Rust Guidelines](https://anssi-fr.github.io/rust-guide/) and the unsafe-code section of the [Rust Language Cheat Sheet](https://cheats.rs/#unsafe-unsound-undefined).
 
 ---
 
@@ -649,45 +657,35 @@ Rust's memory safety and concurrency features make it well-suited for building s
 
 ### 8.1 Secure Communication Protocols
 
-- Implement secure communication protocols, such as TLS and SSH, using Rust's cryptographic libraries and networking primitives.
-- Ensure proper authentication, confidentiality, and integrity of network communication.
-- Follow best practices for secure protocol implementation and configuration.
+- Don't implement TLS or SSH yourself. Use [rustls](https://github.com/rustls/rustls) 0.23.45 or later for TLS ([RUSTSEC-2026-0285](https://rustsec.org/advisories/RUSTSEC-2026-0285.html)), [russh](https://github.com/Eugeny/russh) 0.60.3 or later for SSH ([RUSTSEC-2026-0154](https://rustsec.org/advisories/RUSTSEC-2026-0154.html)) and [snow](https://github.com/mcginty/snow) 0.9.5 or later for the Noise protocol ([RUSTSEC-2024-0011](https://rustsec.org/advisories/RUSTSEC-2024-0011.html)).
+- rustls uses aws-lc-rs by default and prefers the post-quantum hybrid key exchange X25519MLKEM768 ([Cargo.toml](https://github.com/rustls/rustls/blob/v/0.23.45/rustls/Cargo.toml), [provider](https://github.com/rustls/rustls/blob/v/0.23.45/rustls/src/crypto/aws_lc_rs/mod.rs)). `ClientConfig::builder()` panics if no process-wide provider is installed and the crate features don't select exactly one of `aws-lc-rs` and `ring`; keep one, or call `CryptoProvider::install_default()` early in `main`.
+- Verify certificates with the operating system's verifier through [rustls-platform-verifier](https://github.com/rustls/rustls-platform-verifier). On Linux it falls back to webpki and doesn't check revocation.
+- Don't use the old `webpki` crate (no release since 2023); rustls uses its maintained fork, [rustls-webpki](https://github.com/rustls/webpki).
 
-**Updated Example using `rustls`:**
+**Example using `rustls` 0.23 with the platform verifier:**
 
-```rust
-use std::sync::Arc;
+```rust no_run
 use std::io::{Read, Write};
-use rustls::{ClientConfig, ClientConnection, StreamOwned, RootCertStore};
-use webpki::DNSNameRef;
 use std::net::TcpStream;
+use std::sync::Arc;
+
+use rustls::{ClientConfig, ClientConnection, StreamOwned};
+use rustls_platform_verifier::ConfigVerifierExt;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut root_store = RootCertStore::empty();
-    root_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.0.iter().map(|ta| {
-        let ta = webpki::TrustAnchor::try_from_cert_der(&ta.der).unwrap();
-        rustls::OwnedTrustAnchor::from_subject_spki_name_constraints(
-            ta.subject,
-            ta.spki,
-            ta.name_constraints,
-        )
-    }));
-    let config = ClientConfig::builder()
-        .with_safe_defaults()
-        .with_root_certificates(root_store)
-        .with_no_client_auth();
-    let config = Arc::new(config);
+    // OS certificate verification; protocol versions and cipher suites are rustls's safe defaults.
+    let config = Arc::new(ClientConfig::with_platform_verifier()?);
 
-    let server_name = DNSNameRef::try_from_ascii_str("example.com")?;
-    let mut conn = ClientConnection::new(config, server_name.into())?;
-    let mut sock = TcpStream::connect("example.com:443")?;
+    let server_name = "example.com".try_into()?;
+    let conn = ClientConnection::new(config, server_name)?;
+    let sock = TcpStream::connect("example.com:443")?;
     let mut tls = StreamOwned::new(conn, sock);
 
-    tls.write_all(b"GET / HTTP/1.0\r\nHost: example.com\r\n\r\n")?;
-    let mut plaintext = Vec::new();
-    tls.read_to_end(&mut plaintext)?;
-    println!("Server response: {}", String::from_utf8_lossy(&plaintext));
-
+    tls.write_all(b"GET / HTTP/1.1\r\nHost: example.com\r\nConnection: close\r\n\r\n")?;
+    let mut response = Vec::new();
+    // Cap what you read from the network (here 1 MiB).
+    tls.take(1 << 20).read_to_end(&mut response)?;
+    println!("Server response: {}", String::from_utf8_lossy(&response));
     Ok(())
 }
 ```
@@ -698,53 +696,61 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 - Use Rust's type system and libraries to enforce strict access controls and authorization checks.
 - Protect against common authentication vulnerabilities, such as weak passwords, session hijacking, and improper session management.
 
+- For JWTs, use jsonwebtoken 10.3.0 or later ([CVE-2026-25537](https://github.com/advisories/GHSA-h395-gr6q-cpjc)) and select exactly one crypto backend feature: with none, `encode` and `decode` compile but panic at run time ([crypto/mod.rs](https://github.com/Keats/jsonwebtoken/blob/v11.1.0/src/crypto/mod.rs)). Prefer `aws_lc_rs`, because `rust_crypto` pulls in `rsa` and its unpatched Marvin advisory.
+- Use an HS256 key of at least 256 bits ([RFC 7518 §3.2](https://www.rfc-editor.org/rfc/rfc7518.html#section-3.2)) from secret storage, never a literal in the code.
+- Pin the algorithm, and add `iss` and `aud` to the required claims: `set_issuer` and `set_audience` alone still accept tokens that omit them ([validation.rs](https://github.com/Keats/jsonwebtoken/blob/v11.1.0/src/validation.rs)).
+
+```toml
+jsonwebtoken = { version = "11.1.0", default-features = false, features = ["aws_lc_rs"] }
+```
+
 **Example of a simple JWT-based authentication system:**
 
 ```rust
-use jsonwebtoken::{encode, decode, Header, Validation, EncodingKey, DecodingKey, Algorithm};
-use serde::{Serialize, Deserialize};
-use chrono::{Utc, Duration};
+use jsonwebtoken::{
+    Algorithm, DecodingKey, EncodingKey, Header, Validation, decode, encode, get_current_timestamp,
+};
+use serde::{Deserialize, Serialize};
+
+const ISSUER: &str = "https://auth.example.com";
+const AUDIENCE: &str = "https://api.example.com";
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Claims {
     sub: String,
-    exp: usize,
+    iss: String,
+    aud: String,
+    exp: u64,
 }
 
-fn create_token(user_id: &str, secret: &str) -> Result<String, jsonwebtoken::errors::Error> {
-    let expiration = Utc::now()
-        .checked_add_signed(Duration::hours(1))
-        .expect("valid timestamp")
-        .timestamp();
-
+fn create_token(user_id: &str, key: &[u8]) -> Result<String, jsonwebtoken::errors::Error> {
     let claims = Claims {
         sub: user_id.to_owned(),
-        exp: expiration as usize,
+        iss: ISSUER.to_owned(),
+        aud: AUDIENCE.to_owned(),
+        exp: get_current_timestamp() + 15 * 60,
     };
-
-    encode(&Header::default(), &claims, &EncodingKey::from_secret(secret.as_ref()))
+    encode(&Header::new(Algorithm::HS256), &claims, &EncodingKey::from_secret(key))
 }
 
-fn validate_token(token: &str, secret: &str) -> Result<Claims, jsonwebtoken::errors::Error> {
-    let validation = Validation::new(Algorithm::HS256);
-    let token_data = decode::<Claims>(token, &DecodingKey::from_secret(secret.as_ref()), &validation)?;
-    Ok(token_data.claims)
+fn validate_token(token: &str, key: &[u8]) -> Result<Claims, jsonwebtoken::errors::Error> {
+    let mut validation = Validation::new(Algorithm::HS256); // pins the algorithm
+    validation.set_issuer(&[ISSUER]);
+    validation.set_audience(&[AUDIENCE]);
+    validation.set_required_spec_claims(&["exp", "iss", "aud", "sub"]);
+    Ok(decode::<Claims>(token, &DecodingKey::from_secret(key), &validation)?.claims)
 }
 
-fn main() {
-    let secret = "your-secret-key";
-    let user_id = "user123";
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Demo only: a fresh random 256-bit key. In production, load the key
+    // from your secret store.
+    let mut key = [0u8; 32];
+    getrandom::fill(&mut key)?;
 
-    match create_token(user_id, secret) {
-        Ok(token) => {
-            println!("Generated token: {}", token);
-            match validate_token(&token, secret) {
-                Ok(claims) => println!("Valid token for user: {}", claims.sub),
-                Err(e) => println!("Token validation failed: {}", e),
-            }
-        }
-        Err(e) => println!("Token creation failed: {}", e),
-    }
+    let token = create_token("user123", &key)?; // never log tokens
+    let claims = validate_token(&token, &key)?;
+    assert_eq!(claims.sub, "user123");
+    Ok(())
 }
 ```
 
@@ -764,7 +770,8 @@ Rust's support for WebAssembly (Wasm) enables building secure and performant web
 
 - Rust's memory safety guarantees extend to Wasm modules, reducing the risk of memory-related vulnerabilities.
 - Wasm's sandbox execution model provides an additional layer of security, isolating untrusted code.
-- Rust's type system and ownership model prevent common web vulnerabilities, such as cross-site scripting (XSS) and buffer overflows.
+- Rust's types don't prevent cross-site scripting (XSS), which is an output-encoding bug: web-sys's `Element::set_inner_html` is as injectable as JavaScript's `innerHTML` ([web-sys docs](https://docs.rs/web-sys/0.3.106/web_sys/struct.Element.html#method.set_inner_html)). Escape output, sanitize user HTML with [ammonia](https://github.com/rust-ammonia/ammonia) 4.1.4 or later ([RUSTSEC-2026-0213](https://rustsec.org/advisories/RUSTSEC-2026-0213.html)), and deploy a Content Security Policy.
+- Rust's buffer-overflow protection covers safe code only. Inside a module's linear memory there are no guard pages between stack, heap and static data and no ASLR, so memory bugs in `unsafe` code or C dependencies meet fewer mitigations ([Lehmann et al., USENIX Security 2020](https://www.usenix.org/system/files/sec20-lehmann.pdf)).
 
 ### 9.2 Secure Wasm Development Practices
 
@@ -778,8 +785,9 @@ Rust's support for WebAssembly (Wasm) enables building secure and performant web
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
-pub fn add(a: i32, b: i32) -> i32 {
-    a + b
+pub fn add(a: i32, b: i32) -> Option<i32> {
+    // The inputs come from JavaScript: return None on overflow instead of wrapping.
+    a.checked_add(b)
 }
 
 #[wasm_bindgen]
@@ -812,35 +820,7 @@ Rust's memory safety and low-level control make it suitable for building secure 
 - Follow secure coding practices, such as input validation, error handling, and secure configuration management.
 - Implement secure boot, firmware updates, and hardware-based security features when available.
 
-**Example of a simple Rust embedded application using the `embedded-hal` trait:**
-
-```rust
-#![no_std]
-#![no_main]
-
-use panic_halt as _;
-use cortex_m_rt::entry;
-use stm32f1xx_hal::{pac, prelude::*};
-
-#[entry]
-fn main() -> ! {
-    let dp = pac::Peripherals::take().unwrap();
-    let mut flash = dp.FLASH.constrain();
-    let mut rcc = dp.RCC.constrain();
-    let mut gpioc = dp.GPIOC.split();
-
-    let clocks = rcc.cfgr.freeze(&mut flash.acr);
-
-    let mut led = gpioc.pc13.into_push_pull_output();
-
-    loop {
-        led.set_high().unwrap();
-        cortex_m::asm::delay(8_000_000);
-        led.set_low().unwrap();
-        cortex_m::asm::delay(8_000_000);
-    }
-}
-```
+- Guard against stack overflow. With cortex-m-rt's default layout the stack starts at the end of RAM and grows down toward `.bss`, `.data` and the heap, so an overflow silently corrupts statics, even from safe code ([cortex-m-rt docs](https://docs.rs/cortex-m-rt/0.7.7/cortex_m_rt/)). Link with [flip-link](https://github.com/knurling-rs/flip-link), which puts the stack below the statics so an overflow faults instead, or on Armv8-M Mainline enable cortex-m-rt's `set-msplim` feature to set the hardware stack limit.
 
 ### 10.3 Rust Embedded Ecosystem
 
@@ -855,37 +835,17 @@ Rust's design and tooling support formal verification techniques for proving pro
 
 ### 11.1 Rust Verification Tools
 
-- Use Rust verification tools, such as [Prusti](https://github.com/viperproject/prusti-dev) and [Kani](https://model-checking.github.io/kani/), to formally verify Rust code.
+- Start with [Kani](https://model-checking.github.io/kani/), a bit-precise model checker ([0.68.0](https://github.com/model-checking/kani/releases/tag/kani-0.68.0), released 2026-09-16). It is bounded: loops need a bound that you set with `#[kani::unwind(n)]`, and if the bound is too low the unwinding check fails and the other results are undetermined ([loop unwinding](https://model-checking.github.io/kani/tutorial-loop-unwinding.html)).
+- Other verifiers with active development as of 2026-10: [Verus](https://github.com/verus-lang/verus), [Creusot](https://github.com/creusot-rs/creusot), [Aeneas](https://github.com/AeneasVerif/aeneas), [hax](https://github.com/cryspen/hax) and [Flux](https://github.com/flux-rs/flux).
+- [Prusti](https://github.com/prusti/prusti) has had no release or default-branch commit since 2024-03-26 and pins nightly-2023-09-15.
 - Specify and prove functional correctness, memory safety, and security properties using these tools.
 - Integrate formal verification into the development process to catch potential issues early.
 
-**Example of using Prusti for formal verification:**
+To install Kani:
 
-```rust
-use prusti_contracts::*;
-
-#[requires(x > 0)]
-#[ensures(result > x)]
-fn double(x: i32) -> i32 {
-    x * 2
-}
-
-#[requires(a > 0 && b > 0)]
-#[ensures(result >= a && result >= b)]
-fn max(a: i32, b: i32) -> i32 {
-    if a > b {
-        a
-    } else {
-        b
-    }
-}
-
-fn main() {
-    let x = 5;
-    let y = 10;
-    let z = max(double(x), y);
-    assert!(z >= 10);
-}
+```bash
+cargo install --locked kani-verifier
+cargo kani setup
 ```
 
 ### 11.2 Verification-Friendly Rust Subsets
@@ -908,19 +868,20 @@ Rust has been successfully used in various security-critical applications and pr
 ### 12.1 Firecracker
 
 - [Firecracker](https://github.com/firecracker-microvm/firecracker) is a lightweight virtual machine monitor (VMM) developed by Amazon Web Services using Rust.
-- It leverages Rust's memory safety and performance to provide secure and efficient virtualization for serverless computing and container workloads.
+- Its isolation comes in layers: KVM plus the VMM boundary, then seccomp filters (on by default), cgroups, namespaces and a jailer that drops privileges ([design doc](https://github.com/firecracker-microvm/firecracker/blob/main/docs/design.md)). Rust is one layer, not the whole boundary: the VMM still had an out-of-bounds write in its virtio-PCI transport, fixed in 1.14.4 and 1.15.1 ([CVE-2026-5747](https://github.com/firecracker-microvm/firecracker/security/advisories/GHSA-776c-mpj7-jm3r)).
 
 ### 12.2 Tock Operating System
 
 - [Tock](https://github.com/tock/tock) is a secure embedded operating system for low-power wireless devices and microcontrollers.
-- It uses Rust's ownership model and type system to enforce strong isolation and memory safety guarantees.
+- Rust's type and memory safety isolate the kernel from device drivers (capsules); the hardware memory protection unit (MPU) isolates applications from each other and from the kernel ([README](https://github.com/tock/tock/blob/master/README.md)).
+- Formally verifying that isolation found seven bugs in Tock's MPU and interrupt code, six of which broke isolation; Rust's type system doesn't prevent such logic errors, missed checks and integer overflows ([TickTock, SOSP '25](https://ranjitjhala.github.io/static/sosp25-ticktock.pdf)).
 
 ### 12.3 Zcash
 
-- [Zcash](https://github.com/zcash/zcash) is a privacy-focused cryptocurrency that utilizes zero-knowledge proofs for confidential transactions.
-- The Zcash team has been incrementally rewriting performance-critical components in Rust to improve the system's security and efficiency.
+- Zcash is a privacy-focused cryptocurrency that utilizes zero-knowledge proofs for confidential transactions.
+- Its original C++ node, zcashd, reached end of support and halted on 2026-07-18 ([end-of-life notice](https://zcash.github.io/zcash/user/end-of-life.html)). Run [Zebra](https://github.com/ZcashFoundation/zebra), the Zcash Foundation's Rust node; the Rust wallet that replaces zcashd's, [Zallet](https://github.com/zcash/zallet), is still in beta.
 
-These case studies demonstrate Rust's real-world impact in building secure and reliable systems across different domains.
+In each case Rust is one layer of defence, not the whole of it.
 
 ---
 
@@ -930,17 +891,17 @@ The Rust community actively contributes to various security initiatives and coll
 
 ### 13.1 Rust Secure Code Working Group
 
-- The [Rust Secure Code Working Group](https://github.com/rust-secure-code) focuses on improving the security of Rust itself and its ecosystem.
+- The [Rust Secure Code Working Group](https://github.com/rust-secure-code) works on making it easy to write secure code in Rust ([team page](https://rust-lang.org/governance/teams/#team-wg-secure-code)). Vulnerabilities in Rust itself (the compiler, Cargo, the standard library, crates.io) go to the Rust Security Response WG at security@rust-lang.org ([security policy](https://rust-lang.org/policies/security/)).
 - It provides guidance, reviews, and resources to help developers write secure Rust code.
 
 ### 13.2 RustSec
 
-- [RustSec](https://rustsec.org/) is a community-driven effort to provide security advisories, tools, and best practices for the Rust ecosystem.
+- [RustSec](https://rustsec.org/) maintains the RustSec Advisory Database of vulnerabilities in crates.
 - It maintains a vulnerability database, provides security alerts, and offers tools like `cargo-audit` for dependency vulnerability scanning.
 
 ### 13.3 Community Participation and Collaboration
 
-- Engage with the Rust security community through forums, mailing lists, and chat platforms like the [Rust Security Forum](https://users.rust-lang.org/c/security/14) and the `#rust-security` Discord channel.
+- Join the Secure Code WG's Zulip stream, `#wg-secure-code`, linked from its [team page](https://rust-lang.org/governance/teams/#team-wg-secure-code), and subscribe to [rustlang-security-announcements](https://groups.google.com/g/rustlang-security-announcements) for security releases of Rust itself.
 - Participate in security-related events, workshops, and conferences to share knowledge and collaborate with peers.
 - Contribute to open-source Rust security projects, libraries, and tools to help strengthen the ecosystem.
 
@@ -952,20 +913,21 @@ Rust's security features and guarantees set it apart from other commonly used la
 
 ### 14.1 Rust vs. C/C++
 
-- Rust provides memory safety guarantees, eliminating common vulnerabilities like buffer overflows and use-after-free errors that are prevalent in C/C++.
+- Safe Rust provides memory safety guarantees, eliminating common vulnerabilities like buffer overflows and use-after-free errors that are prevalent in C/C++. `unsafe` code and C dependencies are outside those guarantees.
 - Rust's ownership system and borrow checker enforce strict rules for memory management, reducing the risk of manual memory errors.
 - Rust offers safe concurrency primitives, preventing data races and making concurrent programming less error-prone compared to C/C++.
 
 ### 14.2 Rust vs. Go
 
-- Rust's ownership system provides stronger memory safety guarantees compared to Go's garbage-collected model.
+- Go is a memory-safe language too ([CISA/NSA](https://www.cisa.gov/resources-tools/resources/memory-safe-languages-reducing-vulnerabilities-modern-software-development)); its garbage collector prevents use-after-free.
+- Go's gap is data races: a race on a multiword value (interface, map, slice or string) can corrupt memory ([Go memory model](https://go.dev/ref/mem)). Safe Rust rejects data races at compile time.
+- Both are statically typed, and both check indexes at run time and panic when they are out of range ([Go spec](https://go.dev/ref/spec), [Rust Reference](https://doc.rust-lang.org/reference/expressions/array-expr.html)).
 - Rust's fine-grained control over memory layout and allocation allows for more predictable performance and resource usage.
-- Rust's static typing and compile-time checks catch many errors early, while Go relies more on runtime checks and panics.
 
 ### 14.3 Rust vs. High-Level Languages (e.g., Python, Java)
 
 - Rust offers lower-level control and better performance compared to high-level languages, making it suitable for systems programming and resource-constrained environments.
-- Rust's static typing and ownership system provide stronger safety guarantees and catch more errors at compile-time.
+- Java and Python are memory-safe languages as well ([CISA/NSA](https://www.cisa.gov/resources-tools/resources/memory-safe-languages-reducing-vulnerabilities-modern-software-development)), and Java is statically typed ([JLS §4](https://docs.oracle.com/javase/specs/jls/se25/html/jls-4.html)). Java's data races can't tear references ([JLS §17.7](https://docs.oracle.com/javase/specs/jls/se25/html/jls-17.html)). Rust's distinct guarantee is compile-time data-race freedom in safe code.
 - Rust's minimal runtime and lack of garbage collection make it more predictable and deterministic for real-time and embedded systems.
 
 ---
@@ -978,26 +940,30 @@ Comprehensive security testing is crucial for ensuring the robustness of Rust ap
 
 - Use fuzz testing tools like [cargo-fuzz](https://github.com/rust-fuzz/cargo-fuzz) to automatically generate and test inputs, uncovering potential vulnerabilities.
 - Implement fuzz targets for critical parts of your codebase to continuously test for edge cases and unexpected inputs.
+- Fuzz your own parsers, not the standard library, and give the fuzzer something to check. Derive `Arbitrary` for a typed input and assert a property such as a round trip: decoding what you encoded gives back the input ([structure-aware fuzzing](https://rust-fuzz.github.io/book/cargo-fuzz/structure-aware-fuzzing.html)).
 
-**Example of a simple fuzz target:**
+**Example of a round-trip fuzz target** (marked `ignore` in this repository's tests: it uses your own crate, and `cargo fuzz` builds it with nightly-only flags):
 
-```rust
+```rust ignore
+// fuzz/fuzz_targets/round_trip.rs in a `cargo fuzz init` project.
+// `my_parser` is your crate; its `Message` derives `arbitrary::Arbitrary`.
 #![no_main]
 use libfuzzer_sys::fuzz_target;
+use my_parser::{Message, decode, encode};
 
-fuzz_target!(|data: &[u8]| {
-    if let Ok(s) = std::str::from_utf8(data) {
-        let _ = s.parse::<u64>();
-    }
+fuzz_target!(|msg: Message| {
+    let bytes = encode(&msg);
+    let decoded = decode(&bytes).expect("decode must accept what encode produced");
+    assert_eq!(decoded, msg);
 });
 ```
 
-**To set up fuzzing:**
+**To set up fuzzing** (running targets needs nightly, [cargo-fuzz](https://github.com/rust-fuzz/cargo-fuzz)):
 
 ```bash
-cargo install cargo-fuzz
+cargo install cargo-fuzz --locked
 cargo fuzz init
-cargo fuzz run fuzz_target_1
+cargo +nightly fuzz run fuzz_target_1
 ```
 
 ### 15.2 Property-Based Testing
@@ -1014,13 +980,13 @@ fn reverse<T: Clone>(v: &[T]) -> Vec<T> {
     v.iter().rev().cloned().collect()
 }
 
-proptest! {
-    #[test]
-    fn test_reverse(v: Vec<i32>) {
+fn main() {
+    // In a test suite, write this as `proptest! { #[test] fn ... }`.
+    proptest!(|(v: Vec<i32>)| {
         let reversed = reverse(&v);
         prop_assert_eq!(v.len(), reversed.len());
         prop_assert_eq!(v, reverse(&reversed));
-    }
+    });
 }
 ```
 
@@ -1044,60 +1010,59 @@ Designing secure APIs is crucial for building robust and maintainable Rust appli
 
 - Leverage Rust's type system to encode security properties and invariants directly into your API.
 - Use newtypes and custom types to prevent common mistakes and ensure correct usage of your API.
+- For secrets, a newtype with a hand-written `Debug` that prints `[REDACTED]` only hides the value from logs: the secret stays readable as `.0`, and its memory is freed without being wiped. Moving a value doesn't redact anything.
+- Use [`secrecy`](https://docs.rs/secrecy/0.10.3/secrecy/)'s `SecretString` instead: its `Debug` output is redacted, reading it needs an explicit `expose_secret()`, and it zeroizes its memory on drop. Zeroizing is best effort: copies left by moves or earlier reallocation, and the environment variable it came from, remain ([zeroize](https://docs.rs/zeroize/1.9.0/zeroize/)).
 
-**Example of using newtypes for secure API design:**
+**Example of handling a secret:**
 
 ```rust
-use std::fmt;
-
-struct SensitiveData(String);
-
-impl fmt::Debug for SensitiveData {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "SensitiveData([REDACTED])")
-    }
-}
-
-fn process_sensitive_data(data: SensitiveData) {
-    // Process the sensitive data securely
-}
+use secrecy::{ExposeSecret, SecretString};
 
 fn main() {
-    let sensitive = SensitiveData(String::from("secret"));
-    process_sensitive_data(sensitive);
-    // println!("{:?}", sensitive); // This would not compile due to move semantics
-}
+    let api_key = SecretString::from("example-api-key");
+
+    // Debug output is redacted, so the key can't leak through logs by accident.
+    assert_eq!(format!("{api_key:?}"), "SecretBox<str>([REDACTED])");
+
+    // Reading the key needs an explicit call that reviewers can grep for.
+    assert_eq!(api_key.expose_secret().len(), 15);
+} // `api_key` is zeroized here.
 ```
 
 ### 16.2 Error Handling in APIs
 
 - Design clear and informative error types that provide sufficient context without leaking sensitive information.
 - Use the [`thiserror`](https://github.com/dtolnay/thiserror) crate for defining custom error types and the [`anyhow`](https://github.com/dtolnay/anyhow) crate for flexible error handling in application code.
+- Keep internal details out of client-facing messages. `#[error("... {0}")]` copies the inner error's text, such as file paths, into your message ([thiserror docs](https://docs.rs/thiserror/2.0.21/thiserror/)). Give clients a generic message and keep the inner error as its `source()` for server logs.
 
 **Example of custom error types:**
 
 ```rust
+use std::error::Error as _;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum ApiError {
-    #[error("Authentication failed")]
-    AuthError,
-    #[error("Resource not found")]
-    NotFound,
-    #[error("Internal server error: {0}")]
-    InternalError(#[from] std::io::Error),
+    #[error("authentication failed")]
+    Auth,
+    // Generic text for clients; the io::Error stays available as source().
+    #[error("internal server error")]
+    Internal(#[from] std::io::Error),
 }
 
-fn api_operation() -> Result<(), ApiError> {
-    // Perform API operation
-    Err(ApiError::AuthError)
+fn handle(token: &str) -> Result<Vec<u8>, ApiError> {
+    if token.is_empty() {
+        return Err(ApiError::Auth);
+    }
+    Ok(std::fs::read("/nonexistent/app/keys.pem")?)
 }
 
 fn main() {
-    match api_operation() {
-        Ok(_) => println!("Operation successful"),
-        Err(e) => eprintln!("API error: {}", e),
+    for token in ["", "abc"] {
+        if let Err(e) = handle(token) {
+            eprintln!("server log: {e}; source: {:?}", e.source()); // full detail
+            println!("client sees: {e}"); // no paths or OS errors
+        }
     }
 }
 ```
@@ -1115,29 +1080,32 @@ When working on security-critical Rust applications, developers may encounter co
 
 ### 17.1 Memory Safety Issues
 
-- Use tools like [Miri](https://github.com/rust-lang/miri) to detect undefined behavior and memory safety issues in unsafe code.
+- Use tools like [Miri](https://github.com/rust-lang/miri) to detect undefined behavior and memory safety issues in unsafe code. Miri runs only on nightly, checks only the paths your tests execute, and can't run most FFI calls.
 - Leverage the `cargo check` and `cargo clippy` commands to catch potential issues early in the development process.
 
 **Using Miri:**
 
 ```bash
-rustup component add miri
-cargo miri run
+rustup +nightly component add miri
+cargo +nightly miri test
 ```
 
 ### 17.2 Concurrency Bugs
 
 - Utilize tools like Thread Sanitizer (TSan) to detect data races and other concurrency issues.
-- Enable sanitizers in Rust using the `-Z` flags:
+- Sanitizers are nightly-only `-Z` flags, and TSan also needs a standard library rebuilt with it (`-Zbuild-std`) ([unstable book](https://doc.rust-lang.org/nightly/unstable-book/compiler-flags/sanitizer.html)). Replace the target with your host triple (`rustc -vV` prints it):
 
 ```bash
-RUSTFLAGS="-Z sanitizer=thread" cargo run
+rustup component add rust-src --toolchain nightly
+RUSTFLAGS=-Zsanitizer=thread RUSTDOCFLAGS=-Zsanitizer=thread \
+  cargo +nightly test -Zbuild-std --target x86_64-unknown-linux-gnu
 ```
 
 ### 17.3 Cryptographic Misuse
 
-- Use the `cargo audit` command to check for known vulnerabilities in cryptographic dependencies.
-- Consult the [RustCrypto](https://github.com/RustCrypto) project for well-maintained and audited cryptographic implementations.
+- `cargo audit` only reports dependencies with RustSec advisories. It can't detect misuse such as nonce reuse, comparing MACs with `==` or weak randomness ([cargo-audit README](https://github.com/rustsec/rustsec/blob/main/cargo-audit/README.md)).
+- Prevent misuse with APIs that make it hard: compare MAC tags with `Mac::verify_slice`, which runs in constant time, never with `==` ([hmac README](https://github.com/RustCrypto/MACs/blob/master/hmac/README.md)); never repeat an AEAD nonce under the same key ([aead docs](https://docs.rs/aead/0.6.1/aead/type.Nonce.html)); hash passwords with Argon2id ([argon2](https://github.com/RustCrypto/password-hashes/blob/master/argon2/README.md)).
+- Before relying on a crate's audit, check what it covered ([5.2](#52-auditing-and-verification)).
 
 ### 17.4 Performance Bottlenecks
 
@@ -1152,7 +1120,7 @@ Stay informed about the latest developments in Rust security to leverage new too
 
 ### 18.1 Formal Verification Advancements
 
-- Keep an eye on projects like [Kani](https://model-checking.github.io/kani/) and [Prusti](https://github.com/viperproject/prusti-dev) for advancements in formal verification of Rust code.
+- Keep an eye on actively developed verifiers such as [Kani](https://model-checking.github.io/kani/), [Verus](https://github.com/verus-lang/verus) and [Creusot](https://github.com/creusot-rs/creusot) ([11.1](#111-rust-verification-tools)).
 - Explore emerging tools that combine static and dynamic analysis techniques for more comprehensive security assurance.
 
 ### 18.2 Zero-Knowledge Proofs and Privacy-Preserving Computation
@@ -1162,20 +1130,15 @@ Stay informed about the latest developments in Rust security to leverage new too
 
 ### 18.3 Post-Quantum Cryptography
 
-- Stay informed about post-quantum cryptography efforts in the Rust ecosystem, such as the [PQClean](https://github.com/PQClean/PQClean) project.
+- [PQClean](https://github.com/PQClean/PQClean) is archived, and its Rust wrapper `pqcrypto` is unmaintained ([RUSTSEC-2026-0164](https://rustsec.org/advisories/RUSTSEC-2026-0164.html)). Avoid `pqc_kyber` too: it is unmaintained with unpatched advisories ([RUSTSEC-2026-0289](https://rustsec.org/advisories/RUSTSEC-2026-0289.html)).
+- For post-quantum key exchange in TLS, rustls's default hybrid X25519MLKEM768 is already on ([8.1](#81-secure-communication-protocols)). For direct use, RustCrypto's [ml-kem](https://github.com/RustCrypto/KEMs/blob/master/ml-kem/README.md) and [ml-dsa](https://github.com/RustCrypto/signatures/blob/master/ml-dsa/README.md) are the replacements RustSec points to; neither has been independently audited.
 - Consider the implications of quantum computing on current cryptographic implementations and plan for future migration to post-quantum algorithms.
 
 ---
 
 ## Conclusion
 
-Rust provides a solid foundation for building secure and privacy-preserving software systems. By following secure coding practices, leveraging Rust's safety features, and actively contributing to the Rust ecosystem, security and privacy researchers can create robust and reliable solutions.
-
-Adopting Rust in security and privacy-critical applications brings benefits such as memory safety, concurrency guarantees, and performance. However, it's important to recognize the challenges and opportunities associated with Rust adoption and work towards building a strong community and ecosystem.
-
-Regular security audits, including code reviews, automated analysis, dependency auditing, and penetration testing, are essential for maintaining the security of Rust-based software. By combining Rust's strengths with thorough security practices, researchers can develop software that upholds the highest standards of security and privacy.
-
-Remember, security is a continuous process, and staying informed about the latest Rust security research, best practices, and tools is crucial for effective security and privacy work. Engage with the Rust community, collaborate with peers, and leverage the available resources to strengthen your skills and contribute to the advancement of secure systems development.
+Rust removes whole classes of memory-safety bugs from safe code. It doesn't remove logic bugs, unsound `unsafe` code, supply-chain risk or misuse of cryptography, so keep reviewing, testing, auditing dependencies and following [Rust's security announcements](https://groups.google.com/g/rustlang-security-announcements).
 
 ---
 
@@ -1194,17 +1157,20 @@ Remember, security is a continuous process, and staying informed about the lates
 ## Additional Resources
 
 - [The Rust Programming Language Book](https://doc.rust-lang.org/book/)
-- [Rust Security Guidelines](https://anssi-fr.github.io/rust-guide/)
-- [Rust Security Cheat Sheet](https://cheats.rs/#cryptography-and-security)
+- [ANSSI Secure Rust Guidelines](https://anssi-fr.github.io/rust-guide/)
+- [Rust Language Cheat Sheet: unsafe, unsound, undefined](https://cheats.rs/#unsafe-unsound-undefined)
 - [RustCrypto](https://github.com/RustCrypto)
 - [Rust Cryptography Libraries](https://lib.rs/cryptography)
 - [Rust Secure Code Working Group](https://github.com/rust-secure-code)
-- [Rust Security Announcements](https://rustsec.org/)
+- [RustSec Advisory Database](https://rustsec.org/)
+- [Rust security announcements (mailing list)](https://groups.google.com/g/rustlang-security-announcements)
+- [Rust security policy](https://rust-lang.org/policies/security/): report vulnerabilities in Rust itself to security@rust-lang.org
 - [Rust Fuzzing Resources](https://github.com/rust-fuzz)
-- [Rust Embedded Resources](https://rust-embedded.github.io/book/)
+- [Rust Embedded Resources](https://docs.rust-embedded.org/book/)
 - **Rust Formal Verification Tools**:
-  - [Prusti](https://github.com/viperproject/prusti-dev)
   - [Kani](https://model-checking.github.io/kani/)
+  - [Verus](https://github.com/verus-lang/verus)
+  - [Creusot](https://github.com/creusot-rs/creusot)
 - [Rust Analyzer](https://rust-analyzer.github.io/)
 
-If you have any further questions or need assistance, don't hesitate to reach out to the Rust community. Happy coding and researching!
+Found advice here that could make code less safe? Report it privately through this repository's [private vulnerability reporting](https://github.com/iAnonymous3000/awesome-rust-security-guide/security/advisories/new). For other errors, open an issue or a pull request.

@@ -1,0 +1,30 @@
+[package]
+name = "snippets"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.99"
+publish = false
+description = "Doctests for the Rust code blocks in ../README.md: each block is compiled, and run unless it is marked no_run, ignore or compile_fail."
+
+[lib]
+path = "src/lib.rs"
+test = false
+bench = false
+
+# Crates the README examples use. Cargo.lock pins the versions CI tests, and
+# the weekly CI run moves it to the latest compatible releases. The
+# jsonwebtoken line is the one the README shows.
+[dev-dependencies]
+bindgen = "0.73.2"
+getrandom = "0.4.3"
+hex = "0.4.3"
+jsonwebtoken = { version = "11.1.0", default-features = false, features = ["aws_lc_rs"] }
+proptest = { version = "1", default-features = false, features = ["std"] }
+regex = "1.5.5"
+rustls = "0.23.45"
+rustls-platform-verifier = "0.7.1"
+secrecy = "0.10.3"
+serde = { version = "1", features = ["derive"] }
+sha2 = "0.11"
+thiserror = "2.0.21"
+wasm-bindgen = "0.2"
