@@ -18,10 +18,11 @@ bench = false
 [dev-dependencies]
 arbitrary = { version = "1.4.2", features = ["derive"] }
 getrandom = "0.4.3"
+hyper = { version = "1.11.1", features = ["http1", "server"] }
+hyper-util = { version = "0.1.21", features = ["tokio"] }
 jsonwebtoken = { version = "11.1.0", features = ["aws_lc_rs"] }
 serde = { version = "1.0", features = ["derive"] }
-thiserror = "2.0.21"
-tokio = { version = "1.53.2", features = ["macros", "rt", "sync", "time"] }
+tokio = { version = "1.53.2", features = ["macros", "net", "rt", "sync", "time"] }
 web-sys = { version = "0.3.106", features = ["Document", "Element", "Node", "Window"] }
 
 # The README shows everything below verbatim.
@@ -50,6 +51,6 @@ panic = "unwind"
 # also remap them in CI release builds (the last matching prefix wins;
 # add one for a CARGO_HOME outside HOME). RUSTFLAGS replaces every
 # rustflags setting in .cargo/config.toml; if you have any, add the
-# flag there, with $HOME spelled out (config files do not expand it):
+# flag there with an absolute path instead:
 # RUSTFLAGS="--remap-path-prefix=$HOME=~" cargo build --release --locked
 strip = "symbols"
